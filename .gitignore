@@ -1,0 +1,36 @@
+# Environment and secrets
+.env
+.streamlit/secrets.toml
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+
+# Logs
+*.log
+insights_bot.log
+insights_bot_error.log
+kb_bot.log
+kb_bot_error.log
+
+# Data files (may contain sensitive info)
+processed_insights.json
+processed_tickets.json
+kb_cache.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test files
+test_*.py
+debug_*.py
