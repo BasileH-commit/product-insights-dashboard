@@ -41,12 +41,29 @@ st.markdown("""
         background-color: #f8f9fc;
     }
 
+    /* Global text color - darker */
+    .main .block-container {
+        color: #1e293b;
+    }
+
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #1e293b;
+    }
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stMultiSelect label {
+        color: white !important;
+    }
+
     /* Cards */
     .metric-card {
         background: white;
         border-radius: 10px;
         padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         margin-bottom: 20px;
     }
 
@@ -59,19 +76,21 @@ st.markdown("""
 
     .kpi-label {
         font-size: 0.9rem;
-        color: #64748b;
+        color: #475569;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
 
     .kpi-delta-positive {
-        color: #10b981;
+        color: #059669;
         font-size: 0.9rem;
+        font-weight: 600;
     }
 
     .kpi-delta-negative {
-        color: #ef4444;
+        color: #dc2626;
         font-size: 0.9rem;
+        font-weight: 600;
     }
 
     /* Section headers */
@@ -84,13 +103,35 @@ st.markdown("""
 
     .section-subheader {
         font-size: 0.85rem;
-        color: #64748b;
+        color: #475569;
         margin-bottom: 20px;
     }
 
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: #1e293b;
+        font-weight: 500;
+    }
+
+    /* Selectbox / dropdown styling */
+    .stSelectbox > div > div {
+        color: #1e293b;
+    }
+
+    /* Table text */
+    .stDataFrame {
+        color: #1e293b;
+    }
+
+    /* Metric labels */
+    [data-testid="stMetricLabel"] {
+        color: #475569 !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: #1e293b !important;
     }
 
     .stTabs [data-baseweb="tab"] {
@@ -144,7 +185,7 @@ def render_kpi_card(label, value, delta_text, delta_type):
 def create_comparison_chart(df, title, x_col, y_cols, colors=None):
     """Create a grouped bar chart comparing two periods."""
     if colors is None:
-        colors = ['#6366f1', '#a5b4fc']  # Indigo shades
+        colors = ['#4f46e5', '#818cf8']  # Darker indigo shades
 
     fig = go.Figure()
 
@@ -155,11 +196,12 @@ def create_comparison_chart(df, title, x_col, y_cols, colors=None):
             y=df[col],
             marker_color=colors[i],
             text=df[col],
-            textposition='outside'
+            textposition='outside',
+            textfont=dict(color='#1e293b', size=12)
         ))
 
     fig.update_layout(
-        title=title,
+        title=dict(text=title, font=dict(color='#1e293b', size=16)),
         barmode='group',
         xaxis_tickangle=-45,
         height=400,
@@ -168,15 +210,17 @@ def create_comparison_chart(df, title, x_col, y_cols, colors=None):
             yanchor="bottom",
             y=1.02,
             xanchor="right",
-            x=1
+            x=1,
+            font=dict(color='#1e293b', size=12)
         ),
         plot_bgcolor='white',
         paper_bgcolor='white',
-        margin=dict(t=80, b=100)
+        margin=dict(t=80, b=100),
+        font=dict(color='#1e293b')
     )
 
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor='#f1f5f9')
+    fig.update_xaxes(showgrid=False, tickfont=dict(color='#1e293b', size=11), title_font=dict(color='#1e293b'))
+    fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', tickfont=dict(color='#1e293b', size=11), title_font=dict(color='#1e293b'))
 
     return fig
 
