@@ -263,6 +263,18 @@ def main():
     modjo_tw = data.get("modjo_this_week", [])
     modjo_lw = data.get("modjo_last_week", [])
 
+    # Check if data was loaded
+    if not tickets_tw and not categories_tw:
+        st.error("No data loaded. Please check your API credentials in Settings → Secrets.")
+        st.info("""Required secrets:
+```
+ZENDESK_SUBDOMAIN = "your-subdomain"
+ZENDESK_EMAIL = "your-email"
+ZENDESK_TOKEN = "your-token"
+MODJO_API_KEY = "your-key"
+```""")
+        return
+
     # ========== KPI SECTION ==========
     st.markdown("### 📈 Key Metrics")
 
@@ -344,6 +356,9 @@ def main():
             })
 
         cat_df = pd.DataFrame(cat_data)
+        if cat_df.empty:
+            st.warning("No category data available. Check API credentials in Settings → Secrets.")
+            return
         cat_df = cat_df.sort_values("This Week", ascending=False)
 
         # Chart
