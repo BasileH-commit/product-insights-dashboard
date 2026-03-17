@@ -33,6 +33,62 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
+def check_password():
+    """Simple password authentication."""
+
+    def password_entered():
+        """Check if password is correct."""
+        if st.session_state["password"] == st.secrets.get("DASHBOARD_PASSWORD", "smily2024"):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # Don't store password
+        else:
+            st.session_state["password_correct"] = False
+
+    # First run or password not correct
+    if "password_correct" not in st.session_state:
+        st.markdown("""
+        <style>
+            .login-container {
+                max-width: 400px;
+                margin: 100px auto;
+                padding: 40px;
+                background: white;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("## 🔐 Product Insights Dashboard")
+            st.markdown("Please enter the password to access the dashboard.")
+            st.text_input(
+                "Password",
+                type="password",
+                on_change=password_entered,
+                key="password"
+            )
+            st.markdown("---")
+            st.caption("Contact your admin if you don't have access.")
+        return False
+
+    elif not st.session_state["password_correct"]:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("## 🔐 Product Insights Dashboard")
+            st.text_input(
+                "Password",
+                type="password",
+                on_change=password_entered,
+                key="password"
+            )
+            st.error("😕 Incorrect password. Please try again.")
+        return False
+
+    return True
+
 # Custom CSS for styling
 st.markdown("""
 <style>
@@ -261,6 +317,10 @@ def load_data(days_back=7):
 
 
 def main():
+    # Check password first
+    if not check_password():
+        return
+
     # Sidebar
     with st.sidebar:
         st.image("https://bookingsync.com/images/logo.svg", width=150)
