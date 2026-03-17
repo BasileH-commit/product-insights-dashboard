@@ -93,19 +93,39 @@ def fetch_single_organization(org_id):
 
 
 def fetch_zendesk_users():
-    """Fetch all agents/users."""
+    """Fetch all agents/users including admins."""
     users = {}
-    url = f"{ZENDESK_BASE_URL}/users.json?role=agent&per_page=100"
 
-    try:
-        response = requests.get(url, auth=ZENDESK_AUTH, timeout=30)
-        if response.status_code == 200:
-            for user in response.json().get("users", []):
-                users[user["id"]] = user["name"]
-    except Exception:
-        pass
+    # Fetch agents and admins
+    for role in ["agent", "admin"]:
+        url = f"{ZENDESK_BASE_URL}/users.json?role={role}&per_page=100"
+
+        while url:
+            try:
+                response = requests.get(url, auth=ZENDESK_AUTH, timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    for user in data.get("users", []):
+                        users[user["id"]] = user["name"]
+                    url = data.get("next_page")
+                else:
+                    break
+            except Exception:
+                break
 
     return users
+
+
+def fetch_single_user(user_id):
+    """Fetch a single user by ID."""
+    url = f"{ZENDESK_BASE_URL}/users/{user_id}.json"
+    try:
+        response = requests.get(url, auth=ZENDESK_AUTH, timeout=10)
+        if response.status_code == 200:
+            return response.json().get("user", {}).get("name")
+    except Exception:
+        pass
+    return None
 
 
 def fetch_zendesk_tickets(days=7):
@@ -170,11 +190,20 @@ def enrich_tickets_with_org_names(tickets, org_lookup):
 
 
 def enrich_tickets_with_agent_names(tickets, agent_lookup):
-    """Add agent names to tickets."""
+    """Add agent names to tickets, fetching missing agents on-demand."""
     for ticket in tickets:
         assignee_id = ticket.get("assignee_id")
-        if assignee_id and assignee_id in agent_lookup:
-            ticket["agent_name"] = agent_lookup[assignee_id]
+        if assignee_id:
+            if assignee_id in agent_lookup:
+                ticket["agent_name"] = agent_lookup[assignee_id]
+            else:
+                # Fetch missing agent on-demand
+                agent_name = fetch_single_user(assignee_id)
+                if agent_name:
+                    agent_lookup[assignee_id] = agent_name
+                    ticket["agent_name"] = agent_name
+                else:
+                    ticket["agent_name"] = None
         else:
             ticket["agent_name"] = None
     return tickets

@@ -46,7 +46,7 @@ st.markdown("""
         color: #1e293b;
     }
 
-    /* Sidebar styling */
+    /* Sidebar styling - dark background with white text */
     [data-testid="stSidebar"] {
         background-color: #1e293b;
     }
@@ -56,6 +56,20 @@ st.markdown("""
     [data-testid="stSidebar"] .stSelectbox label,
     [data-testid="stSidebar"] .stMultiSelect label {
         color: white !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: #94a3b8 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stMetricDelta"] {
+        color: #4ade80 !important;
+    }
+    [data-testid="stSidebar"] input,
+    [data-testid="stSidebar"] select {
+        color: #1e293b !important;
+        background-color: white !important;
     }
 
     /* Cards */
@@ -496,8 +510,12 @@ MODJO_API_KEY = "your-key"
                 xaxis_tickangle=-45,
                 height=450,
                 plot_bgcolor='white',
-                paper_bgcolor='white'
+                paper_bgcolor='white',
+                font=dict(color='#1e293b', size=12),
+                title_font=dict(color='#1e293b', size=16)
             )
+            fig_issues.update_xaxes(tickfont=dict(color='#1e293b', size=11))
+            fig_issues.update_yaxes(tickfont=dict(color='#1e293b', size=11), gridcolor='#e2e8f0')
             st.plotly_chart(fig_issues, use_container_width=True)
 
             # Table
@@ -542,8 +560,12 @@ MODJO_API_KEY = "your-key"
                 xaxis_tickangle=-45,
                 height=450,
                 plot_bgcolor='white',
-                paper_bgcolor='white'
+                paper_bgcolor='white',
+                font=dict(color='#1e293b', size=12),
+                title_font=dict(color='#1e293b', size=16)
             )
+            fig_cust.update_xaxes(tickfont=dict(color='#1e293b', size=11))
+            fig_cust.update_yaxes(tickfont=dict(color='#1e293b', size=11), gridcolor='#e2e8f0')
             st.plotly_chart(fig_cust, use_container_width=True)
 
             # Table
@@ -582,31 +604,41 @@ MODJO_API_KEY = "your-key"
                 name="Assigned",
                 x=agent_df["Agent"],
                 y=agent_df["Assigned"],
-                marker_color='#6366f1'
+                marker_color='#4f46e5',
+                text=agent_df["Assigned"],
+                textposition='outside',
+                textfont=dict(color='#1e293b', size=11)
             ))
 
             fig_agent.add_trace(go.Bar(
                 name="Solved",
                 x=agent_df["Agent"],
                 y=agent_df["Solved"],
-                marker_color='#10b981'
+                marker_color='#059669',
+                text=agent_df["Solved"],
+                textposition='outside',
+                textfont=dict(color='#1e293b', size=11)
             ))
 
             fig_agent.update_layout(
-                title="Agent Workload & Performance",
+                title=dict(text="Agent Workload & Performance", font=dict(color='#1e293b', size=16)),
                 barmode='group',
                 xaxis_tickangle=-45,
                 height=450,
                 plot_bgcolor='white',
                 paper_bgcolor='white',
+                font=dict(color='#1e293b', size=12),
                 legend=dict(
                     orientation="h",
                     yanchor="bottom",
                     y=1.02,
                     xanchor="right",
-                    x=1
+                    x=1,
+                    font=dict(color='#1e293b', size=12)
                 )
             )
+            fig_agent.update_xaxes(tickfont=dict(color='#1e293b', size=11))
+            fig_agent.update_yaxes(tickfont=dict(color='#1e293b', size=11), gridcolor='#e2e8f0')
             st.plotly_chart(fig_agent, use_container_width=True)
 
             # Table
