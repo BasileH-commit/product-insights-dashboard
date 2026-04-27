@@ -7,6 +7,7 @@ Supports both local .env and Streamlit Cloud secrets.
 
 import os
 import requests
+import calendar
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 
@@ -128,14 +129,32 @@ def fetch_single_user(user_id):
     return None
 
 
-def fetch_zendesk_tickets(days=7):
-    """Fetch recent tickets from Zendesk API."""
-    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+def fetch_zendesk_tickets(days=None, start_date=None, end_date=None):
+    """
+    Fetch recent tickets from Zendesk API.
+
+    Args:
+        days: Number of days back (if using day-based mode)
+        start_date: Start date as datetime object (if using date range mode)
+        end_date: End date as datetime object (if using date range mode)
+    """
+    if start_date and end_date:
+        # Use date range
+        cutoff_start = start_date.strftime("%Y-%m-%d")
+        cutoff_end = end_date.strftime("%Y-%m-%d")
+        query = f"type:ticket created>={cutoff_start} created<={cutoff_end}"
+    else:
+        # Use days back (default behavior)
+        if days is None:
+            days = 7
+        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        query = f"type:ticket created>{cutoff}"
+
     tickets = []
 
     url = f"{ZENDESK_BASE_URL}/search.json"
     params = {
-        "query": f"type:ticket created>{cutoff}",
+        "query": query,
         "per_page": 100,
         "sort_by": "created_at",
         "sort_order": "desc"
@@ -209,20 +228,35 @@ def enrich_tickets_with_agent_names(tickets, agent_lookup):
     return tickets
 
 
-def fetch_modjo_calls(days=7):
-    """Fetch calls from Modjo API."""
+def fetch_modjo_calls(days=None, start_date=None, end_date=None):
+    """
+    Fetch calls from Modjo API.
+
+    Args:
+        days: Number of days back (if using day-based mode)
+        start_date: Start date as datetime object (if using date range mode)
+        end_date: End date as datetime object (if using date range mode)
+    """
     if not MODJO_API_KEY:
         return []
 
-    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    end_date = datetime.now().strftime("%Y-%m-%d")
+    if start_date and end_date:
+        # Use date range
+        start_date_str = start_date.strftime("%Y-%m-%d")
+        end_date_str = end_date.strftime("%Y-%m-%d")
+    else:
+        # Use days back (default behavior)
+        if days is None:
+            days = 7
+        start_date_str = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        end_date_str = datetime.now().strftime("%Y-%m-%d")
 
     url = f"{MODJO_BASE_URL}/calls/search"
     payload = {
         "filters": {
             "date": {
-                "start": start_date,
-                "end": end_date
+                "start": start_date_str,
+                "end": end_date_str
             }
         },
         "page": 1,
@@ -271,54 +305,129 @@ def categorize_detailed(text):
     return "Other"
 
 
-def fetch_all_data(days_back=7):
-    """Fetch all data needed for the dashboard."""
+def fetch_all_data(mode="days", days_back=None, year=None, month=None):
+    """
+    Fetch all data needed for the dashboard.
+
+    Supports two modes:
+    - mode="days": Fetches last N days vs previous N days
+    - mode="month": Fetches specific calendar month vs previous calendar month
+
+    Args:
+        mode: "days" or "month"
+        days_back: Number of days (for mode="days")
+        year: Year (for mode="month")
+        month: Month 1-12 (for mode="month")
+    """
     # Fetch lookups
     org_lookup = fetch_zendesk_organizations()
     agent_lookup = fetch_zendesk_users()
 
-    # Fetch this week's tickets
-    tickets_tw = fetch_zendesk_tickets(days=days_back)
-    tickets_tw = enrich_tickets_with_org_names(tickets_tw, org_lookup)
-    tickets_tw = enrich_tickets_with_agent_names(tickets_tw, agent_lookup)
+    if mode == "month":
+        # Calculate calendar month boundaries
+        # First day of selected month
+        first_day_this_month = datetime(year, month, 1)
 
-    # Fetch last week's tickets (for comparison)
-    tickets_all = fetch_zendesk_tickets(days=days_back * 2)
-    tickets_all = enrich_tickets_with_org_names(tickets_all, org_lookup)
-    tickets_all = enrich_tickets_with_agent_names(tickets_all, agent_lookup)
+        # Last day of selected month
+        last_day_num = calendar.monthrange(year, month)[1]
+        last_day_this_month = datetime(year, month, last_day_num, 23, 59, 59)
 
-    # Separate this week and last week
-    tw_ids = {t["id"] for t in tickets_tw}
-    tickets_lw = [t for t in tickets_all if t["id"] not in tw_ids]
+        # Calculate previous month
+        if month == 1:
+            prev_year = year - 1
+            prev_month = 12
+        else:
+            prev_year = year
+            prev_month = month - 1
+
+        first_day_prev_month = datetime(prev_year, prev_month, 1)
+        last_day_prev_num = calendar.monthrange(prev_year, prev_month)[1]
+        last_day_prev_month = datetime(prev_year, prev_month, last_day_prev_num, 23, 59, 59)
+
+        # Fetch tickets for both months using date ranges
+        now = datetime.now()
+
+        # Fetch current month tickets (up to today if current month, full month if past)
+        if year == now.year and month == now.month:
+            end_date_this_month = now
+        else:
+            end_date_this_month = last_day_this_month
+
+        tickets_all = fetch_zendesk_tickets(start_date=first_day_prev_month, end_date=end_date_this_month)
+        tickets_all = enrich_tickets_with_org_names(tickets_all, org_lookup)
+        tickets_all = enrich_tickets_with_agent_names(tickets_all, agent_lookup)
+
+        # Separate tickets by date
+        tickets_this_period = []
+        tickets_prev_period = []
+
+        for ticket in tickets_all:
+            created_at_str = ticket.get('created_at', '')
+            if created_at_str:
+                # Parse ISO 8601 datetime (e.g., "2026-04-15T10:30:00Z")
+                try:
+                    created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                    # Remove timezone info for comparison
+                    created_at = created_at.replace(tzinfo=None)
+
+                    if first_day_this_month <= created_at <= end_date_this_month:
+                        tickets_this_period.append(ticket)
+                    elif first_day_prev_month <= created_at <= last_day_prev_month:
+                        tickets_prev_period.append(ticket)
+                except Exception:
+                    pass  # Skip tickets with invalid dates
+
+        # Fetch Modjo calls for both months
+        modjo_this_period = fetch_modjo_calls(start_date=first_day_this_month, end_date=end_date_this_month)
+        modjo_prev_period = fetch_modjo_calls(start_date=first_day_prev_month, end_date=last_day_prev_month)
+
+    else:  # mode == "days"
+        if days_back is None:
+            days_back = 7
+
+        # Fetch this period's tickets
+        tickets_this_period = fetch_zendesk_tickets(days=days_back)
+        tickets_this_period = enrich_tickets_with_org_names(tickets_this_period, org_lookup)
+        tickets_this_period = enrich_tickets_with_agent_names(tickets_this_period, agent_lookup)
+
+        # Fetch previous period's tickets (for comparison)
+        tickets_all = fetch_zendesk_tickets(days=days_back * 2)
+        tickets_all = enrich_tickets_with_org_names(tickets_all, org_lookup)
+        tickets_all = enrich_tickets_with_agent_names(tickets_all, agent_lookup)
+
+        # Separate this period and last period
+        this_period_ids = {t["id"] for t in tickets_this_period}
+        tickets_prev_period = [t for t in tickets_all if t["id"] not in this_period_ids]
+
+        # Fetch Modjo calls
+        modjo_this_period = fetch_modjo_calls(days=days_back)
+        modjo_prev_period = fetch_modjo_calls(days=days_back * 2)
+        modjo_prev_period = [c for c in modjo_prev_period if c not in modjo_this_period]
 
     # Categorize tickets
-    categories_tw = Counter()
-    categories_lw = Counter()
+    categories_this_period = Counter()
+    categories_prev_period = Counter()
 
-    for ticket in tickets_tw:
+    for ticket in tickets_this_period:
         text = f"{ticket.get('subject', '')} {(ticket.get('description') or '')[:200]}"
         cat = categorize_detailed(text)
         ticket["category"] = cat
-        categories_tw[cat] += 1
+        categories_this_period[cat] += 1
 
-    for ticket in tickets_lw:
+    for ticket in tickets_prev_period:
         text = f"{ticket.get('subject', '')} {(ticket.get('description') or '')[:200]}"
         cat = categorize_detailed(text)
         ticket["category"] = cat
-        categories_lw[cat] += 1
+        categories_prev_period[cat] += 1
 
-    # Fetch Modjo calls
-    modjo_tw = fetch_modjo_calls(days=days_back)
-    modjo_lw = fetch_modjo_calls(days=days_back * 2)
-    modjo_lw = [c for c in modjo_lw if c not in modjo_tw]  # Approximate separation
-
+    # Return data structure (keep keys for backward compatibility)
     return {
-        "tickets_this_week": tickets_tw,
-        "tickets_last_week": tickets_lw,
-        "categories_this_week": dict(categories_tw),
-        "categories_last_week": dict(categories_lw),
-        "modjo_this_week": modjo_tw,
-        "modjo_last_week": modjo_lw,
+        "tickets_this_week": tickets_this_period,
+        "tickets_last_week": tickets_prev_period,
+        "categories_this_week": dict(categories_this_period),
+        "categories_last_week": dict(categories_prev_period),
+        "modjo_this_week": modjo_this_period,
+        "modjo_last_week": modjo_prev_period,
         "org_lookup": org_lookup,
         "agent_lookup": agent_lookup,
     }
@@ -355,13 +464,13 @@ def get_category_breakdown(tickets_tw, tickets_lw):
 
         result.append({
             "Category": cat,
-            "This Week": tw,
-            "Last Week": lw,
+            "This Period": tw,
+            "Last Period": lw,
             "Δ": delta,
-            "WoW %": wow_str
+            "Change %": wow_str
         })
 
-    return sorted(result, key=lambda x: -x["This Week"])
+    return sorted(result, key=lambda x: -x["This Period"])
 
 
 def get_subcategory_breakdown(tickets_tw, tickets_lw, parent_category):
@@ -424,13 +533,13 @@ def get_subcategory_breakdown(tickets_tw, tickets_lw, parent_category):
 
         result.append({
             "Subcategory": subcat,
-            "This Week": tw,
-            "Last Week": lw,
+            "This Period": tw,
+            "Last Period": lw,
             "Δ": delta,
-            "WoW %": wow_str
+            "Change %": wow_str
         })
 
-    return sorted(result, key=lambda x: -x["This Week"])
+    return sorted(result, key=lambda x: -x["This Period"])
 
 
 def get_top_issues(tickets_tw, tickets_lw, limit=15):
@@ -510,7 +619,7 @@ def get_top_customers(tickets_tw, tickets_lw, limit=15):
         result.append({
             "Customer": customer,
             "Tickets": count,
-            "Last Week": lw,
+            "Last Period": lw,
             "Trend": trend
         })
 
@@ -552,7 +661,7 @@ def get_agent_stats(tickets_tw, tickets_lw):
             "Assigned": assigned,
             "Solved": solved,
             "Solve Rate": f"{rate:.0f}%",
-            "WoW": trend
+            "Change": trend
         })
 
     return result

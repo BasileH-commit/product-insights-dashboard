@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+import calendar
 from collections import Counter, defaultdict
 import json
 import os
@@ -306,14 +308,14 @@ def create_trend_table(df):
                 return 'color: #ef4444; font-weight: 600'
         return ''
 
-    styled = df.style.map(style_delta, subset=['Δ', 'WoW %'])
+    styled = df.style.map(style_delta, subset=['Δ', 'Change %'])
     return styled
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def load_data(days_back=7):
-    """Load data with caching."""
-    return fetch_all_data(days_back)
+def load_data(mode="days", days_back=None, year=None, month=None):
+    """Load data with caching. Supports both day-based and month-based periods."""
+    return fetch_all_data(mode=mode, days_back=days_back, year=year, month=month)
 
 
 def main():
@@ -329,14 +331,66 @@ def main():
 
         # Date range selector
         st.subheader("📅 Time Period")
-        period = st.selectbox(
-            "Select period",
-            ["Last 7 days", "Last 14 days", "Last 30 days"],
-            index=0
+
+        # View mode toggle
+        view_mode = st.radio(
+            "View by:",
+            options=["Week", "Month"],
+            index=0,
+            horizontal=True,
+            key="view_mode"
         )
 
-        days_map = {"Last 7 days": 7, "Last 14 days": 14, "Last 30 days": 30}
-        days_back = days_map[period]
+        st.markdown("")  # Visual spacing
+
+        # Conditional period selector based on view mode
+        if view_mode == "Week":
+            period = st.selectbox(
+                "Select period",
+                ["Last 7 days", "Last 14 days", "Last 30 days"],
+                index=0
+            )
+            days_map = {"Last 7 days": 7, "Last 14 days": 14, "Last 30 days": 30}
+            days_back = days_map[period]
+
+            # Set parameters for weekly fetch
+            fetch_params = {"mode": "days", "days_back": days_back}
+            comparison_label = "vs last week"
+            period_label = period.lower()
+
+        else:  # Month view
+            # Generate list of last 4 calendar months
+            today = datetime.now()
+            months = []
+            month_data = []
+
+            for i in range(4):
+                month_date = today - relativedelta(months=i)
+                month_label = month_date.strftime("%B %Y")  # e.g., "April 2026"
+                months.append(month_label)
+                month_data.append({
+                    "label": month_label,
+                    "year": month_date.year,
+                    "month": month_date.month
+                })
+
+            selected_month_label = st.selectbox(
+                "Select month",
+                months,
+                index=0
+            )
+
+            # Find the selected month data
+            selected_month = next(m for m in month_data if m["label"] == selected_month_label)
+
+            # Set parameters for monthly fetch
+            fetch_params = {
+                "mode": "month",
+                "year": selected_month["year"],
+                "month": selected_month["month"]
+            }
+            comparison_label = "vs last month"
+            period_label = selected_month_label
 
         # Data source selector
         st.subheader("📡 Data Source")
@@ -358,12 +412,18 @@ def main():
 
     # Main content
     st.title("Product Insights Dashboard")
-    st.markdown(f"<p class='section-subheader'>Analyzing data from {period.lower()} • Zendesk + Modjo</p>", unsafe_allow_html=True)
+    st.markdown(f"<p class='section-subheader'>Analyzing data from {period_label} • Zendesk + Modjo</p>", unsafe_allow_html=True)
+
+    # Add warning for current incomplete month
+    if view_mode == "Month":
+        today = datetime.now()
+        if selected_month["year"] == today.year and selected_month["month"] == today.month:
+            st.info(f"ℹ️ Note: Currently viewing {selected_month_label} (incomplete month). Data includes tickets up to today.")
 
     # Load data
     with st.spinner("Loading data from APIs..."):
         try:
-            data = load_data(days_back)
+            data = load_data(**fetch_params)
         except Exception as e:
             st.error(f"Error loading data: {e}")
             st.info("Make sure your .env file has valid API credentials.")
@@ -455,7 +515,7 @@ MODJO_API_KEY = "your-key"
     # ========== TAB 1: CATEGORIES ==========
     with tab1:
         st.markdown("### Tickets by Category — Overview")
-        st.markdown(f"<p class='section-subheader'>All categories with WoW comparison • Total: {len(tickets_tw)} tickets</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='section-subheader'>All categories with period comparison • Total: {len(tickets_tw)} tickets</p>", unsafe_allow_html=True)
 
         # Prepare category data
         cat_data = []
@@ -467,17 +527,17 @@ MODJO_API_KEY = "your-key"
 
             cat_data.append({
                 "Category": cat,
-                "This Week": tw_count,
-                "Last Week": lw_count,
+                "This Period": tw_count,
+                "Last Period": lw_count,
                 "Δ": delta,
-                "WoW %": f"{wow_pct:+.1f}%" if lw_count > 0 else ("🆕 New" if tw_count > 0 else "—")
+                "Change %": f"{wow_pct:+.1f}%" if lw_count > 0 else ("🆕 New" if tw_count > 0 else "—")
             })
 
         cat_df = pd.DataFrame(cat_data)
         if cat_df.empty:
             st.warning("No category data available. Check API credentials in Settings → Secrets.")
             return
-        cat_df = cat_df.sort_values("This Week", ascending=False)
+        cat_df = cat_df.sort_values("This Period", ascending=False)
 
         # Chart
         chart_df = cat_df.head(10).copy()
@@ -485,7 +545,7 @@ MODJO_API_KEY = "your-key"
             chart_df,
             "",
             "Category",
-            ["This Week", "Last Week"],
+            ["This Period", "Last Period"],
             colors=['#6366f1', '#a5b4fc']
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -494,7 +554,7 @@ MODJO_API_KEY = "your-key"
         st.markdown("#### Detailed Breakdown")
 
         # Style the dataframe
-        display_df = cat_df[["Category", "This Week", "Last Week", "Δ", "WoW %"]].copy()
+        display_df = cat_df[["Category", "This Period", "Last Period", "Δ", "Change %"]].copy()
 
         def color_delta(val):
             if isinstance(val, (int, float)):
@@ -509,7 +569,7 @@ MODJO_API_KEY = "your-key"
                     return 'color: #ef4444'
             return ''
 
-        styled_df = display_df.style.map(color_delta, subset=['Δ', 'WoW %'])
+        styled_df = display_df.style.map(color_delta, subset=['Δ', 'Change %'])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
         # Subcategory drill-down
@@ -526,21 +586,21 @@ MODJO_API_KEY = "your-key"
 
             if subcats:
                 subcat_df = pd.DataFrame(subcats)
-                subcat_df = subcat_df.sort_values("This Week", ascending=False)
+                subcat_df = subcat_df.sort_values("This Period", ascending=False)
 
                 # Subcategory chart
                 fig_sub = create_comparison_chart(
                     subcat_df.head(15),
                     f"{selected_category} — Subcategory Breakdown",
                     "Subcategory",
-                    ["This Week", "Last Week"],
+                    ["This Period", "Last Period"],
                     colors=['#6366f1', '#a5b4fc']
                 )
                 st.plotly_chart(fig_sub, use_container_width=True)
 
                 # Subcategory table
                 st.dataframe(
-                    subcat_df.style.map(color_delta, subset=['Δ', 'WoW %']),
+                    subcat_df.style.map(color_delta, subset=['Δ', 'Change %']),
                     use_container_width=True,
                     hide_index=True
                 )
