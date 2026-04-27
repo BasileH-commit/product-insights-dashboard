@@ -99,9 +99,21 @@ st.markdown("""
         background-color: #f8f9fc;
     }
 
-    /* Global text color - darker */
+    /* Global text color */
     .main .block-container {
         color: #1e293b;
+    }
+
+    /* Main content metrics - improve visibility */
+    .main [data-testid="stMetricLabel"] {
+        color: #64748b !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+    }
+    .main [data-testid="stMetricValue"] {
+        color: #0f172a !important;
+        font-weight: 800 !important;
+        font-size: 2rem !important;
     }
 
     /* Sidebar styling - dark background with white text */
@@ -189,8 +201,30 @@ st.markdown("""
     }
 
     /* Selectbox / dropdown styling */
-    .stSelectbox > div > div {
-        color: #1e293b;
+    .stSelectbox label {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+    }
+
+    /* Selectbox input - ensure high contrast */
+    .stSelectbox [data-baseweb="select"] {
+        background-color: white !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] > div {
+        background-color: white !important;
+        color: #0f172a !important;
+        font-weight: 500 !important;
+    }
+
+    /* Dropdown menu items */
+    [data-baseweb="menu"] [data-baseweb="list-item"] {
+        background-color: white !important;
+        color: #0f172a !important;
+    }
+
+    [data-baseweb="menu"] [data-baseweb="list-item"]:hover {
+        background-color: #f1f5f9 !important;
     }
 
     /* Table text */
@@ -198,12 +232,12 @@ st.markdown("""
         color: #1e293b;
     }
 
-    /* Metric labels */
+    /* Metric styling defaults */
     [data-testid="stMetricLabel"] {
-        color: #475569 !important;
+        font-weight: 600 !important;
     }
     [data-testid="stMetricValue"] {
-        color: #1e293b !important;
+        font-weight: 800 !important;
     }
 
     .stTabs [data-baseweb="tab"] {
