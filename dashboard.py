@@ -126,6 +126,7 @@ st.markdown("""
     [data-testid="stSidebar"] .stSelectbox label,
     [data-testid="stSidebar"] .stMultiSelect label {
         color: white !important;
+        font-weight: 600 !important;
     }
     [data-testid="stSidebar"] [data-testid="stMetricValue"] {
         color: white !important;
@@ -136,6 +137,22 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stMetricDelta"] {
         color: #4ade80 !important;
     }
+
+    /* Sidebar selectbox - selected value visible */
+    [data-testid="stSidebar"] [data-baseweb="select"] {
+        background-color: #0f172a !important;
+        border: 1px solid #475569 !important;
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background-color: #0f172a !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] svg {
+        fill: white !important;
+    }
+
+    /* Sidebar input and radio buttons */
     [data-testid="stSidebar"] input,
     [data-testid="stSidebar"] select {
         color: #1e293b !important;
@@ -200,31 +217,50 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* Selectbox / dropdown styling */
-    .stSelectbox label {
-        color: #1e293b !important;
-        font-weight: 600 !important;
+    /* Main content selectbox / dropdown styling */
+    .main .stSelectbox label {
+        color: #0f172a !important;
+        font-weight: 700 !important;
+        font-size: 1rem !important;
     }
 
-    /* Selectbox input - ensure high contrast */
-    .stSelectbox [data-baseweb="select"] {
+    /* Main content selectbox input - ensure high contrast */
+    .main .stSelectbox [data-baseweb="select"] {
+        background-color: white !important;
+        border: 2px solid #cbd5e1 !important;
+    }
+
+    .main .stSelectbox [data-baseweb="select"] > div {
+        background-color: white !important;
+        color: #0f172a !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+    }
+
+    /* Dropdown menu items - keep readable when open */
+    [data-baseweb="popover"] {
         background-color: white !important;
     }
 
-    .stSelectbox [data-baseweb="select"] > div {
+    [data-baseweb="menu"] {
+        background-color: white !important;
+    }
+
+    [data-baseweb="menu"] [data-baseweb="list-item"] {
         background-color: white !important;
         color: #0f172a !important;
         font-weight: 500 !important;
     }
 
-    /* Dropdown menu items */
-    [data-baseweb="menu"] [data-baseweb="list-item"] {
-        background-color: white !important;
+    [data-baseweb="menu"] [data-baseweb="list-item"]:hover {
+        background-color: #e0e7ff !important;
         color: #0f172a !important;
     }
 
-    [data-baseweb="menu"] [data-baseweb="list-item"]:hover {
-        background-color: #f1f5f9 !important;
+    /* Selected item in dropdown */
+    [data-baseweb="menu"] [aria-selected="true"] {
+        background-color: #4f46e5 !important;
+        color: white !important;
     }
 
     /* Table text */
@@ -486,6 +522,19 @@ ZENDESK_TOKEN = "your-token"
 MODJO_API_KEY = "your-key"
 ```""")
         return
+
+    # Debug info - show what was fetched
+    with st.expander("🔍 Debug Info - Data Ranges", expanded=False):
+        st.markdown(f"**This Period:** {len(tickets_tw)} tickets")
+        st.markdown(f"**Previous Period:** {len(tickets_lw)} tickets")
+        if view_mode == "Month" and tickets_tw:
+            # Show date range of tickets fetched
+            dates_tw = [t.get('created_at', '') for t in tickets_tw if t.get('created_at')]
+            dates_lw = [t.get('created_at', '') for t in tickets_lw if t.get('created_at')]
+            if dates_tw:
+                st.markdown(f"**This period date range:** {min(dates_tw)[:10]} to {max(dates_tw)[:10]}")
+            if dates_lw:
+                st.markdown(f"**Previous period date range:** {min(dates_lw)[:10]} to {max(dates_lw)[:10]}")
 
     # ========== KPI SECTION ==========
     st.markdown("### 📈 Key Metrics")

@@ -344,7 +344,7 @@ def fetch_all_data(mode="days", days_back=None, year=None, month=None):
         last_day_prev_num = calendar.monthrange(prev_year, prev_month)[1]
         last_day_prev_month = datetime(prev_year, prev_month, last_day_prev_num, 23, 59, 59)
 
-        # Fetch tickets for both months using date ranges
+        # Fetch tickets for both months - fetch separately for clarity
         now = datetime.now()
 
         # Fetch current month tickets (up to today if current month, full month if past)
@@ -353,29 +353,15 @@ def fetch_all_data(mode="days", days_back=None, year=None, month=None):
         else:
             end_date_this_month = last_day_this_month
 
-        tickets_all = fetch_zendesk_tickets(start_date=first_day_prev_month, end_date=end_date_this_month)
-        tickets_all = enrich_tickets_with_org_names(tickets_all, org_lookup)
-        tickets_all = enrich_tickets_with_agent_names(tickets_all, agent_lookup)
+        # Fetch this month's tickets
+        tickets_this_period = fetch_zendesk_tickets(start_date=first_day_this_month, end_date=end_date_this_month)
+        tickets_this_period = enrich_tickets_with_org_names(tickets_this_period, org_lookup)
+        tickets_this_period = enrich_tickets_with_agent_names(tickets_this_period, agent_lookup)
 
-        # Separate tickets by date
-        tickets_this_period = []
-        tickets_prev_period = []
-
-        for ticket in tickets_all:
-            created_at_str = ticket.get('created_at', '')
-            if created_at_str:
-                # Parse ISO 8601 datetime (e.g., "2026-04-15T10:30:00Z")
-                try:
-                    created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
-                    # Remove timezone info for comparison
-                    created_at = created_at.replace(tzinfo=None)
-
-                    if first_day_this_month <= created_at <= end_date_this_month:
-                        tickets_this_period.append(ticket)
-                    elif first_day_prev_month <= created_at <= last_day_prev_month:
-                        tickets_prev_period.append(ticket)
-                except Exception:
-                    pass  # Skip tickets with invalid dates
+        # Fetch previous month's tickets
+        tickets_prev_period = fetch_zendesk_tickets(start_date=first_day_prev_month, end_date=last_day_prev_month)
+        tickets_prev_period = enrich_tickets_with_org_names(tickets_prev_period, org_lookup)
+        tickets_prev_period = enrich_tickets_with_agent_names(tickets_prev_period, agent_lookup)
 
         # Fetch Modjo calls for both months
         modjo_this_period = fetch_modjo_calls(start_date=first_day_this_month, end_date=end_date_this_month)
