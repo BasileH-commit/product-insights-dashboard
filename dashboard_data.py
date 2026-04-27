@@ -660,3 +660,194 @@ def get_modjo_summary(calls_tw, calls_lw):
         "total_last_week": len(calls_lw),
         "change": len(calls_tw) - len(calls_lw)
     }
+
+
+def generate_actionable_insights(tickets_tw, tickets_lw, categories_tw, categories_lw):
+    """
+    Analyze ticket patterns and generate actionable insights and opportunities.
+
+    Returns a list of insight dictionaries with:
+    - category: The category/area of concern
+    - severity: "high", "medium", "low"
+    - trend: "growing", "stable", "declining"
+    - insight: Description of the issue
+    - action: Suggested action to take
+    - impact: Potential impact of addressing this
+    """
+    insights = []
+
+    # 1. Analyze high-volume categories
+    total_tickets = len(tickets_tw)
+    for category, count in categories_tw.items():
+        if count == 0:
+            continue
+
+        percentage = (count / total_tickets * 100) if total_tickets > 0 else 0
+        prev_count = categories_lw.get(category, 0)
+
+        # Calculate growth rate
+        if prev_count > 0:
+            growth_rate = ((count - prev_count) / prev_count) * 100
+        else:
+            growth_rate = 100 if count > 0 else 0
+
+        # High volume categories (>15% of tickets)
+        if percentage > 15:
+            if "Booking.com" in category:
+                if "New Connections" in category:
+                    insights.append({
+                        "category": "Booking.com Onboarding",
+                        "severity": "high" if growth_rate > 20 else "medium",
+                        "trend": "growing" if growth_rate > 10 else "stable",
+                        "insight": f"{count} tickets ({percentage:.1f}%) about connecting new Booking.com listings. {growth_rate:+.0f}% change.",
+                        "action": "Review onboarding flow UX. Check for common blockers in connection wizard. Consider in-app video tutorial.",
+                        "impact": "Could reduce 30-40% of support tickets if self-service is improved."
+                    })
+                elif "Sync Issues" in category:
+                    insights.append({
+                        "category": "Booking.com Sync Reliability",
+                        "severity": "high",
+                        "trend": "growing" if growth_rate > 10 else "stable",
+                        "insight": f"{count} sync issues ({percentage:.1f}%). Common problems: calendar, photos, availability.",
+                        "action": "Deep dive into Booking.com API error logs. Identify most common sync failures. Implement auto-retry logic.",
+                        "impact": "Sync reliability is critical for trust. High priority to investigate API response patterns."
+                    })
+                else:
+                    insights.append({
+                        "category": "Booking.com General",
+                        "severity": "medium",
+                        "trend": "growing" if growth_rate > 10 else "stable",
+                        "insight": f"{count} general Booking.com tickets ({percentage:.1f}%).",
+                        "action": "Analyze ticket subjects to identify specific sub-patterns. May need better categorization.",
+                        "impact": "Breaking down generic issues into specific problems will help prioritize fixes."
+                    })
+
+            elif "SmilyPay" in category or "Payment" in category:
+                insights.append({
+                    "category": "SmilyPay KYC/Documents",
+                    "severity": "high" if growth_rate > 15 else "medium",
+                    "trend": "growing" if growth_rate > 10 else "stable",
+                    "insight": f"{count} payment/document issues ({percentage:.1f}%). Often document rejections.",
+                    "action": "Review KYC requirements clarity. Add better error messages explaining why documents are rejected. Create FAQ.",
+                    "impact": "Payment setup friction directly impacts revenue. Streamlining KYC could reduce 25-30% of these tickets."
+                })
+
+        # Fast-growing categories (>50% growth regardless of volume)
+        if growth_rate > 50 and count > 3:
+            insights.append({
+                "category": category,
+                "severity": "medium",
+                "trend": "growing",
+                "insight": f"{category} growing rapidly: {growth_rate:+.0f}% ({prev_count} → {count} tickets).",
+                "action": f"Investigate recent changes or issues in {category}. May indicate new bug or changed workflow.",
+                "impact": "Early detection of emerging issues. Address before it becomes high-volume."
+            })
+
+    # 2. Analyze recurring issue patterns from subjects
+    issue_patterns = defaultdict(int)
+    for ticket in tickets_tw:
+        subject = ticket.get("subject", "").lower()
+
+        # Pattern matching for common issues
+        if "sync" in subject or "synchronisation" in subject:
+            issue_patterns["sync_issues"] += 1
+        if "connect" in subject or "connexion" in subject or "add" in subject:
+            issue_patterns["connection_issues"] += 1
+        if "document" in subject and ("reject" in subject or "rejet" in subject):
+            issue_patterns["document_rejection"] += 1
+        if "blocked" in subject or "bloqué" in subject or "suspended" in subject:
+            issue_patterns["listing_blocked"] += 1
+        if "calendar" in subject or "calendrier" in subject or "availability" in subject:
+            issue_patterns["calendar_issues"] += 1
+        if "photo" in subject or "image" in subject:
+            issue_patterns["photo_issues"] += 1
+        if "price" in subject or "prix" in subject or "tarif" in subject:
+            issue_patterns["pricing_issues"] += 1
+
+    # Generate insights from patterns
+    if issue_patterns["sync_issues"] > total_tickets * 0.10:
+        insights.append({
+            "category": "Sync Reliability",
+            "severity": "high",
+            "trend": "stable",
+            "insight": f"{issue_patterns['sync_issues']} tickets mention sync issues. Cross-channel problem.",
+            "action": "Audit sync infrastructure. Check API rate limits, error handling, and retry logic. Monitor sync job success rates.",
+            "impact": "Sync is core functionality. Reliability improvements affect all channels (Booking, Airbnb, Vrbo)."
+        })
+
+    if issue_patterns["document_rejection"] > 5:
+        insights.append({
+            "category": "Payment Onboarding UX",
+            "severity": "medium",
+            "trend": "stable",
+            "insight": f"{issue_patterns['document_rejection']} tickets about rejected documents.",
+            "action": "Improve document upload UX: show examples, clarify requirements, add validation before submission.",
+            "impact": "Smoother payment onboarding = faster time-to-revenue for customers."
+        })
+
+    if issue_patterns["listing_blocked"] > 5:
+        insights.append({
+            "category": "Listing Moderation",
+            "severity": "high",
+            "trend": "stable",
+            "insight": f"{issue_patterns['listing_blocked']} tickets about blocked/suspended listings.",
+            "action": "Review common reasons for blocking. Add proactive warnings before listing gets blocked. Improve error messaging.",
+            "impact": "Blocked listings = lost revenue for customers. Better prevention reduces panic tickets."
+        })
+
+    # 3. Analyze customer concentration risk
+    customer_tickets = Counter()
+    for ticket in tickets_tw:
+        org = ticket.get("organization_name")
+        if org:
+            customer_tickets[org] += 1
+
+    top_customer, top_count = customer_tickets.most_common(1)[0] if customer_tickets else (None, 0)
+    if top_count > total_tickets * 0.10:  # One customer >10% of tickets
+        insights.append({
+            "category": "Customer Success",
+            "severity": "medium",
+            "trend": "stable",
+            "insight": f"Top customer '{top_customer}' has {top_count} tickets ({top_count/total_tickets*100:.1f}%).",
+            "action": "Schedule call with this customer. Identify systemic issues or training gaps. Consider dedicated support.",
+            "impact": "High-volume customers may churn if issues persist. Proactive engagement critical."
+        })
+
+    # 4. Identify opportunities from declining categories (good news)
+    declining_categories = []
+    for category, count in categories_tw.items():
+        prev_count = categories_lw.get(category, 0)
+        if prev_count > 10 and count > 0:
+            decline_rate = ((count - prev_count) / prev_count) * 100
+            if decline_rate < -30:
+                declining_categories.append((category, decline_rate, prev_count, count))
+
+    if declining_categories:
+        best_improvement = max(declining_categories, key=lambda x: abs(x[1]))
+        insights.append({
+            "category": "Success Story",
+            "severity": "low",
+            "trend": "declining",
+            "insight": f"✅ {best_improvement[0]} decreased {best_improvement[1]:.0f}% ({best_improvement[2]} → {best_improvement[3]}).",
+            "action": "Document what changed. Was it a bug fix, UX improvement, or documentation? Replicate for other categories.",
+            "impact": "Learn from successes to improve other problem areas."
+        })
+
+    # 5. Check for notification/automation opportunities
+    if issue_patterns["connection_issues"] > total_tickets * 0.15:
+        insights.append({
+            "category": "Self-Service Onboarding",
+            "severity": "medium",
+            "trend": "stable",
+            "insight": f"{issue_patterns['connection_issues']} connection/setup tickets. Onboarding friction.",
+            "action": "Add interactive onboarding checklist. Create video walkthroughs. Implement in-app tooltips for first connection.",
+            "impact": "Better onboarding = faster activation, lower support burden, improved NPS."
+        })
+
+    # Sort by severity (high first) and trend (growing first)
+    severity_order = {"high": 0, "medium": 1, "low": 2}
+    trend_order = {"growing": 0, "stable": 1, "declining": 2}
+
+    insights.sort(key=lambda x: (severity_order[x["severity"]], trend_order[x["trend"]]))
+
+    return insights

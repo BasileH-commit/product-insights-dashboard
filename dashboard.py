@@ -24,6 +24,7 @@ from dashboard_data import (
     get_top_customers,
     get_agent_stats,
     get_modjo_summary,
+    generate_actionable_insights,
     CATEGORIES_DETAILED
 )
 
@@ -655,6 +656,44 @@ MODJO_API_KEY = "your-key"
         styled_df = display_df.style.map(color_delta, subset=['Δ', 'Change %'])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
+        # Actionable Insights Section
+        st.markdown("---")
+        st.markdown("### 💡 Actionable Insights & Opportunities")
+        st.markdown("<p class='section-subheader'>AI-powered analysis of patterns and suggested focus areas</p>", unsafe_allow_html=True)
+
+        insights = generate_actionable_insights(tickets_tw, tickets_lw, categories_tw, categories_lw)
+
+        if insights:
+            # Show top 5 insights
+            for idx, insight in enumerate(insights[:5], 1):
+                severity_color = {
+                    "high": "#dc2626",
+                    "medium": "#f59e0b",
+                    "low": "#10b981"
+                }
+                severity_emoji = {
+                    "high": "🔴",
+                    "medium": "🟡",
+                    "low": "🟢"
+                }
+                trend_emoji = {
+                    "growing": "📈",
+                    "stable": "➡️",
+                    "declining": "📉"
+                }
+
+                with st.expander(
+                    f"{severity_emoji[insight['severity']]} {insight['category']} {trend_emoji[insight['trend']]}",
+                    expanded=(idx <= 2)  # Auto-expand first 2
+                ):
+                    st.markdown(f"**{insight['insight']}**")
+                    st.markdown(f"**💡 Suggested Action:**")
+                    st.info(insight['action'])
+                    st.markdown(f"**🎯 Potential Impact:**")
+                    st.success(insight['impact'])
+        else:
+            st.info("No specific insights generated for this period. Check back with more data.")
+
         # Subcategory drill-down
         st.markdown("---")
         st.markdown("### 🔍 Subcategory Breakdown")
@@ -737,6 +776,44 @@ MODJO_API_KEY = "your-key"
                 use_container_width=True,
                 hide_index=True
             )
+
+            # Actionable Insights Section
+            st.markdown("---")
+            st.markdown("### 💡 Actionable Insights & Opportunities")
+            st.markdown("<p class='section-subheader'>AI-powered analysis of patterns and suggested focus areas</p>", unsafe_allow_html=True)
+
+            insights = generate_actionable_insights(tickets_tw, tickets_lw, categories_tw, categories_lw)
+
+            if insights:
+                # Show top 5 insights
+                for idx, insight in enumerate(insights[:5], 1):
+                    severity_color = {
+                        "high": "#dc2626",
+                        "medium": "#f59e0b",
+                        "low": "#10b981"
+                    }
+                    severity_emoji = {
+                        "high": "🔴",
+                        "medium": "🟡",
+                        "low": "🟢"
+                    }
+                    trend_emoji = {
+                        "growing": "📈",
+                        "stable": "➡️",
+                        "declining": "📉"
+                    }
+
+                    with st.expander(
+                        f"{severity_emoji[insight['severity']]} {insight['category']} {trend_emoji[insight['trend']]}",
+                        expanded=(idx <= 2)  # Auto-expand first 2
+                    ):
+                        st.markdown(f"**{insight['insight']}**")
+                        st.markdown(f"**💡 Suggested Action:**")
+                        st.info(insight['action'])
+                        st.markdown(f"**🎯 Potential Impact:**")
+                        st.success(insight['impact'])
+            else:
+                st.info("No specific insights generated for this period. Check back with more data.")
         else:
             st.info("No issue data available.")
 
