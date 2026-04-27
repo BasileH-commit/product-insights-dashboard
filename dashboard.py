@@ -306,7 +306,7 @@ def create_trend_table(df):
                 return 'color: #ef4444; font-weight: 600'
         return ''
 
-    styled = df.style.applymap(style_delta, subset=['Δ', 'WoW %'])
+    styled = df.style.map(style_delta, subset=['Δ', 'WoW %'])
     return styled
 
 
@@ -509,7 +509,7 @@ MODJO_API_KEY = "your-key"
                     return 'color: #ef4444'
             return ''
 
-        styled_df = display_df.style.applymap(color_delta, subset=['Δ', 'WoW %'])
+        styled_df = display_df.style.map(color_delta, subset=['Δ', 'WoW %'])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
         # Subcategory drill-down
@@ -540,7 +540,7 @@ MODJO_API_KEY = "your-key"
 
                 # Subcategory table
                 st.dataframe(
-                    subcat_df.style.applymap(color_delta, subset=['Δ', 'WoW %']),
+                    subcat_df.style.map(color_delta, subset=['Δ', 'WoW %']),
                     use_container_width=True,
                     hide_index=True
                 )
@@ -590,7 +590,7 @@ MODJO_API_KEY = "your-key"
 
             display_issues = issues_df[["Issue", "Count", "Customers", "Trend"]].copy()
             st.dataframe(
-                display_issues.style.applymap(color_trend, subset=['Trend']),
+                display_issues.style.map(color_trend, subset=['Trend']),
                 use_container_width=True,
                 hide_index=True
             )
