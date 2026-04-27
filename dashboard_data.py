@@ -129,6 +129,18 @@ def fetch_single_user(user_id):
     return None
 
 
+def fetch_ticket_comments(ticket_id):
+    """Fetch comments for a specific ticket to analyze CS responses."""
+    url = f"{ZENDESK_BASE_URL}/tickets/{ticket_id}/comments.json"
+    try:
+        response = requests.get(url, auth=ZENDESK_AUTH, timeout=10)
+        if response.status_code == 200:
+            return response.json().get("comments", [])
+    except Exception:
+        pass
+    return []
+
+
 def fetch_zendesk_tickets(days=None, start_date=None, end_date=None):
     """
     Fetch recent tickets from Zendesk API.
@@ -851,3 +863,229 @@ def generate_actionable_insights(tickets_tw, tickets_lw, categories_tw, categori
     insights.sort(key=lambda x: (severity_order[x["severity"]], trend_order[x["trend"]]))
 
     return insights
+
+
+def deep_dive_analysis(tickets, max_sample=30):
+    """
+    Deep dive into ticket content to extract:
+    - Specific real issues reported
+    - Which app/platform has the issue
+    - Solutions provided by CS team
+
+    Args:
+        tickets: List of tickets to analyze
+        max_sample: Maximum number of tickets to deep dive (to avoid API limits)
+
+    Returns:
+        List of deep dive findings with issue, app, and solution
+    """
+    findings = []
+
+    # Focus on solved tickets to see resolutions
+    solved_tickets = [t for t in tickets if t.get("status") == "solved"]
+
+    # Sample tickets if too many (prioritize recent and high priority)
+    if len(solved_tickets) > max_sample:
+        # Sort by priority and recency
+        priority_order = {"urgent": 0, "high": 1, "normal": 2, "low": 3}
+        solved_tickets = sorted(
+            solved_tickets,
+            key=lambda t: (
+                priority_order.get(t.get("priority", "normal"), 2),
+                t.get("created_at", "")
+            ),
+            reverse=True
+        )[:max_sample]
+
+    # Analyze each ticket
+    for ticket in solved_tickets:
+        subject = ticket.get("subject", "")
+        description = ticket.get("description", "") or ""
+        ticket_id = ticket.get("id")
+
+        # Identify the app/platform
+        app = "Unknown"
+        subject_lower = subject.lower()
+        desc_lower = description.lower()
+        combined = f"{subject_lower} {desc_lower}"
+
+        if "booking.com" in combined or "booking" in combined or "b.com" in combined:
+            app = "Booking.com"
+        elif "airbnb" in combined or "air bnb" in combined:
+            app = "Airbnb"
+        elif "vrbo" in combined or "abritel" in combined:
+            app = "Vrbo/Abritel"
+        elif "smilypay" in combined or "payment" in combined or "iban" in combined or "kyc" in combined:
+            app = "SmilyPay"
+        elif "website" in combined or "widget" in combined or "landing" in combined:
+            app = "Website/Widget"
+        elif "notification" in combined or "email" in combined:
+            app = "Notifications"
+        elif "pricing" in combined or "price" in combined or "tarif" in combined:
+            app = "Pricing Engine"
+
+        # Extract specific issue type
+        issue_type = "General"
+        if "sync" in combined or "synchronisation" in combined:
+            issue_type = "Sync Issue"
+        elif "connect" in combined or "connexion" in combined or "add" in combined and "listing" in combined:
+            issue_type = "Connection/Onboarding"
+        elif "block" in combined or "bloqué" in combined or "suspended" in combined:
+            issue_type = "Listing Blocked"
+        elif "calendar" in combined or "availability" in combined or "disponibilité" in combined:
+            issue_type = "Calendar/Availability"
+        elif "photo" in combined or "image" in combined:
+            issue_type = "Photo Upload/Sync"
+        elif "document" in combined and ("reject" in combined or "rejet" in combined):
+            issue_type = "Document Rejection"
+        elif "price" in combined or "tarif" in combined or "rate" in combined:
+            issue_type = "Pricing Issue"
+        elif "reservation" in combined or "booking" in subject_lower and "new" not in combined:
+            issue_type = "Reservation Issue"
+
+        # Fetch comments to find CS solution (limit API calls)
+        solution = None
+        comments = fetch_ticket_comments(ticket_id)
+
+        # Analyze CS team responses (look for agent responses, not customer)
+        for comment in comments:
+            if not comment.get("public", True):
+                continue  # Skip internal notes
+
+            author_id = comment.get("author_id")
+            body = comment.get("body", "").lower()
+
+            # Simple heuristic: if it's not the requester and has helpful keywords
+            if len(body) > 50:  # Meaningful response
+                # Look for solution indicators
+                if any(keyword in body for keyword in [
+                    "resolved", "fixed", "corrigé", "résolu",
+                    "should work", "try", "please check",
+                    "updated", "mis à jour", "modified",
+                    "reconnect", "reconnecter", "refresh",
+                    "contact", "reach out", "escalate"
+                ]):
+                    # Extract key solution phrases
+                    if "reconnect" in body or "reconnecter" in body:
+                        solution = "Reconnect listing/account"
+                    elif "refresh" in body or "rafraîchir" in body:
+                        solution = "Refresh connection/sync"
+                    elif "updated" in body or "mis à jour" in body or "modified" in body:
+                        solution = "Updated configuration/settings"
+                    elif "contact" in body and ("booking" in body or "airbnb" in body or "vrbo" in body):
+                        solution = "Escalate to channel partner"
+                    elif "document" in body and ("upload" in body or "provide" in body):
+                        solution = "Re-upload required documents"
+                    elif "mapping" in body or "match" in body:
+                        solution = "Fix listing mapping"
+                    elif "duplicate" in body:
+                        solution = "Remove duplicate listing"
+                    elif "permission" in body or "access" in body:
+                        solution = "Fix account permissions"
+                    elif "api" in body or "technical" in body:
+                        solution = "Technical fix/API issue"
+                    else:
+                        solution = "CS team manual intervention"
+                    break
+
+        # Create finding
+        finding = {
+            "app": app,
+            "issue_type": issue_type,
+            "subject": subject[:100],  # Truncate long subjects
+            "solution": solution or "Unknown/No clear resolution",
+            "ticket_id": ticket_id,
+            "priority": ticket.get("priority", "normal"),
+            "customer": ticket.get("organization_name", "Unknown")
+        }
+
+        findings.append(finding)
+
+    return findings
+
+
+def analyze_deep_dive_patterns(findings):
+    """
+    Analyze deep dive findings to extract patterns and actionable recommendations.
+
+    Returns structured insights by app and issue type with common solutions.
+    """
+    if not findings:
+        return []
+
+    # Group by app and issue type
+    patterns = defaultdict(lambda: {
+        "count": 0,
+        "issues": defaultdict(int),
+        "solutions": defaultdict(int),
+        "examples": []
+    })
+
+    for finding in findings:
+        app = finding["app"]
+        issue_type = finding["issue_type"]
+        solution = finding["solution"]
+
+        patterns[app]["count"] += 1
+        patterns[app]["issues"][issue_type] += 1
+        patterns[app]["solutions"][solution] += 1
+
+        # Keep a few examples
+        if len(patterns[app]["examples"]) < 3:
+            patterns[app]["examples"].append({
+                "subject": finding["subject"],
+                "issue": issue_type,
+                "solution": solution,
+                "customer": finding["customer"]
+            })
+
+    # Generate structured recommendations
+    recommendations = []
+
+    for app, data in sorted(patterns.items(), key=lambda x: -x[1]["count"]):
+        if data["count"] < 2:  # Skip low-volume apps
+            continue
+
+        # Find top issue and solution
+        top_issue = max(data["issues"].items(), key=lambda x: x[1])
+        top_solution = max(data["solutions"].items(), key=lambda x: x[1])
+
+        # Calculate solution effectiveness
+        solution_diversity = len(data["solutions"])
+        manual_intervention_count = data["solutions"].get("CS team manual intervention", 0)
+
+        # Determine opportunity
+        opportunity = None
+        if top_issue[0] == "Connection/Onboarding":
+            opportunity = "Improve onboarding UX with step-by-step wizard and validation"
+        elif top_issue[0] == "Sync Issue":
+            opportunity = "Implement auto-retry logic and better error messages"
+        elif top_issue[0] == "Document Rejection":
+            opportunity = "Add document validation before upload, show examples"
+        elif top_issue[0] == "Listing Blocked":
+            opportunity = "Proactive warnings before blocking, clearer unblock process"
+        elif top_issue[0] == "Calendar/Availability":
+            opportunity = "Automated sync health checks, one-click refresh button"
+        elif top_solution[0] == "Reconnect listing/account":
+            opportunity = "Add self-service reconnect button in UI"
+        elif solution_diversity > 5:
+            opportunity = "Issues too varied - may need better categorization or multiple fixes"
+        elif manual_intervention_count > data["count"] * 0.5:
+            opportunity = "High manual intervention - investigate automation opportunities"
+
+        rec = {
+            "app": app,
+            "total_issues": data["count"],
+            "top_issue": top_issue[0],
+            "top_issue_count": top_issue[1],
+            "top_solution": top_solution[0],
+            "top_solution_count": top_solution[1],
+            "solution_types": len(data["solutions"]),
+            "manual_intervention_rate": f"{manual_intervention_count / data['count'] * 100:.0f}%",
+            "opportunity": opportunity,
+            "examples": data["examples"]
+        }
+
+        recommendations.append(rec)
+
+    return recommendations

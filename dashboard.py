@@ -25,6 +25,8 @@ from dashboard_data import (
     get_agent_stats,
     get_modjo_summary,
     generate_actionable_insights,
+    deep_dive_analysis,
+    analyze_deep_dive_patterns,
     CATEGORIES_DETAILED
 )
 
@@ -694,6 +696,52 @@ MODJO_API_KEY = "your-key"
         else:
             st.info("No specific insights generated for this period. Check back with more data.")
 
+        # Deep Dive Analysis Section
+        st.markdown("---")
+        st.markdown("### 🔬 Deep Dive: Real Issues, Apps & Solutions")
+        st.markdown("<p class='section-subheader'>Analyze ticket content to extract specific issues, affected apps, and CS team solutions</p>", unsafe_allow_html=True)
+
+        with st.expander("🚀 Run Deep Dive Analysis (samples up to 30 solved tickets)", expanded=False):
+            st.info("This analysis fetches ticket comments to identify real issues, the app/platform affected, and solutions provided by the CS team. Click below to run.")
+
+            if st.button("🔍 Analyze Solved Tickets", key="deep_dive_categories"):
+                with st.spinner("Analyzing ticket content and CS responses..."):
+                    # Run deep dive
+                    findings = deep_dive_analysis(tickets_tw, max_sample=30)
+                    patterns = analyze_deep_dive_patterns(findings)
+
+                    if patterns:
+                        st.success(f"✅ Analyzed {len(findings)} solved tickets. Found {len(patterns)} app-specific patterns.")
+
+                        for pattern in patterns:
+                            st.markdown("---")
+                            st.markdown(f"### 📱 {pattern['app']} ({pattern['total_issues']} issues)")
+
+                            col1, col2 = st.columns(2)
+
+                            with col1:
+                                st.metric("Top Issue Type", pattern['top_issue'], f"{pattern['top_issue_count']} occurrences")
+                                st.metric("Solution Types", pattern['solution_types'], pattern['manual_intervention_rate'] + " manual")
+
+                            with col2:
+                                st.metric("Most Common Solution", pattern['top_solution'][:40] + "..." if len(pattern['top_solution']) > 40 else pattern['top_solution'])
+
+                            if pattern['opportunity']:
+                                st.warning(f"**🎯 Opportunity:** {pattern['opportunity']}")
+
+                            # Show examples
+                            st.markdown("**Real Examples:**")
+                            for idx, example in enumerate(pattern['examples'], 1):
+                                st.markdown(f"""
+                                **{idx}. {example['issue']}**
+                                - Subject: _{example['subject']}_
+                                - Customer: {example['customer']}
+                                - Solution: {example['solution']}
+                                """)
+
+                    else:
+                        st.warning("Not enough solved tickets to generate patterns. Try a different time period.")
+
         # Subcategory drill-down
         st.markdown("---")
         st.markdown("### 🔍 Subcategory Breakdown")
@@ -814,6 +862,52 @@ MODJO_API_KEY = "your-key"
                         st.success(insight['impact'])
             else:
                 st.info("No specific insights generated for this period. Check back with more data.")
+
+            # Deep Dive Analysis Section
+            st.markdown("---")
+            st.markdown("### 🔬 Deep Dive: Real Issues, Apps & Solutions")
+            st.markdown("<p class='section-subheader'>Analyze ticket content to extract specific issues, affected apps, and CS team solutions</p>", unsafe_allow_html=True)
+
+            with st.expander("🚀 Run Deep Dive Analysis (samples up to 30 solved tickets)", expanded=False):
+                st.info("This analysis fetches ticket comments to identify real issues, the app/platform affected, and solutions provided by the CS team. Click below to run.")
+
+                if st.button("🔍 Analyze Solved Tickets", key="deep_dive_issues"):
+                    with st.spinner("Analyzing ticket content and CS responses..."):
+                        # Run deep dive
+                        findings = deep_dive_analysis(tickets_tw, max_sample=30)
+                        patterns = analyze_deep_dive_patterns(findings)
+
+                        if patterns:
+                            st.success(f"✅ Analyzed {len(findings)} solved tickets. Found {len(patterns)} app-specific patterns.")
+
+                            for pattern in patterns:
+                                st.markdown("---")
+                                st.markdown(f"### 📱 {pattern['app']} ({pattern['total_issues']} issues)")
+
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    st.metric("Top Issue Type", pattern['top_issue'], f"{pattern['top_issue_count']} occurrences")
+                                    st.metric("Solution Types", pattern['solution_types'], pattern['manual_intervention_rate'] + " manual")
+
+                                with col2:
+                                    st.metric("Most Common Solution", pattern['top_solution'][:40] + "..." if len(pattern['top_solution']) > 40 else pattern['top_solution'])
+
+                                if pattern['opportunity']:
+                                    st.warning(f"**🎯 Opportunity:** {pattern['opportunity']}")
+
+                                # Show examples
+                                st.markdown("**Real Examples:**")
+                                for idx, example in enumerate(pattern['examples'], 1):
+                                    st.markdown(f"""
+                                    **{idx}. {example['issue']}**
+                                    - Subject: _{example['subject']}_
+                                    - Customer: {example['customer']}
+                                    - Solution: {example['solution']}
+                                    """)
+
+                        else:
+                            st.warning("Not enough solved tickets to generate patterns. Try a different time period.")
         else:
             st.info("No issue data available.")
 
