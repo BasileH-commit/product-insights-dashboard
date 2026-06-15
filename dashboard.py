@@ -729,19 +729,20 @@ MODJO_API_KEY = "your-key"
                             # Get description to show actual issue
                             description = ticket.get('description', '')
                             if description:
-                                # Clean and truncate description
-                                desc_clean = description.replace('\n', ' ').replace('\r', ' ')
-                                desc_clean = ' '.join(desc_clean.split())  # Remove extra whitespace
-                                issue_detail = desc_clean[:250] + '...' if len(desc_clean) > 250 else desc_clean
+                                # Clean description while preserving paragraphs
+                                desc_clean = description.strip()
+                                # Replace multiple newlines with double newline for paragraphs
+                                desc_clean = '\n\n'.join([p.strip() for p in desc_clean.split('\n\n') if p.strip()])
+                                issue_detail = desc_clean
                             else:
                                 issue_detail = "_No description provided_"
 
-                            st.markdown(f"""
-                            **Example {i}:** "{subject}"
-                            - **Issue/Request:** {issue_detail}
-                            - **Customer:** _{customer}_
-                            - **Priority:** `{priority}` | **Created:** {created}
-                            """)
+                            st.markdown(f"**Example {i}:** \"{subject}\"")
+                            st.markdown(f"**Customer:** _{customer}_")
+                            st.markdown(f"**Priority:** `{priority}` | **Created:** {created}")
+                            st.markdown("**Issue/Request:**")
+                            st.info(issue_detail)
+                            st.markdown("")  # Add spacing between examples
                     else:
                         st.caption("_No specific ticket examples available for this pattern_")
         else:
@@ -940,19 +941,20 @@ MODJO_API_KEY = "your-key"
                                 # Get description to show actual issue
                                 description = ticket.get('description', '')
                                 if description:
-                                    # Clean and truncate description
-                                    desc_clean = description.replace('\n', ' ').replace('\r', ' ')
-                                    desc_clean = ' '.join(desc_clean.split())  # Remove extra whitespace
-                                    issue_detail = desc_clean[:250] + '...' if len(desc_clean) > 250 else desc_clean
+                                    # Clean description while preserving paragraphs
+                                    desc_clean = description.strip()
+                                    # Replace multiple newlines with double newline for paragraphs
+                                    desc_clean = '\n\n'.join([p.strip() for p in desc_clean.split('\n\n') if p.strip()])
+                                    issue_detail = desc_clean
                                 else:
                                     issue_detail = "_No description provided_"
 
-                                st.markdown(f"""
-                                **Example {i}:** "{subject}"
-                                - **Issue/Request:** {issue_detail}
-                                - **Customer:** _{customer}_
-                                - **Priority:** `{priority}` | **Created:** {created}
-                                """)
+                                st.markdown(f"**Example {i}:** \"{subject}\"")
+                                st.markdown(f"**Customer:** _{customer}_")
+                                st.markdown(f"**Priority:** `{priority}` | **Created:** {created}")
+                                st.markdown("**Issue/Request:**")
+                                st.info(issue_detail)
+                                st.markdown("")  # Add spacing between examples
                         else:
                             st.caption("_No specific ticket examples available for this pattern_")
             else:
