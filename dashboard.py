@@ -602,7 +602,7 @@ MODJO_API_KEY = "your-key"
     st.markdown("---")
 
     # ========== TABS ==========
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Categories", "🔥 Top Issues", "🏢 Customers", "👤 Agents"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Categories", "🔥 Top Issues", "🏢 Customers", "👤 Agents", "🔬 Deep Dive"])
 
     # ========== TAB 1: CATEGORIES ==========
     with tab1:
@@ -1026,6 +1026,175 @@ MODJO_API_KEY = "your-key"
             st.dataframe(agent_df, use_container_width=True, hide_index=True)
         else:
             st.info("No agent data available.")
+
+    # ========== TAB 5: DEEP DIVE ==========
+    with tab5:
+        st.markdown("### 🔬 Friction Deep Dive by Category")
+        st.markdown(f"<p class='section-subheader'>Analyze real issues, pain points, and solutions per category</p>", unsafe_allow_html=True)
+
+        # Category selector
+        categories_list = sorted(categories_tw.keys(), key=lambda x: -categories_tw[x])
+        selected_cat = st.selectbox(
+            "Select category to analyze",
+            options=categories_list,
+            index=0 if categories_list else None
+        )
+
+        if selected_cat:
+            cat_tickets = [t for t in tickets_tw if t.get("category") == selected_cat]
+
+            st.markdown(f"#### {selected_cat}")
+            st.markdown(f"**{len(cat_tickets)} tickets** in this category this period")
+
+            # Get subcategory breakdown
+            from dashboard_data import extract_subcategory
+            subcat_counts = Counter()
+            subcat_tickets = defaultdict(list)
+
+            for ticket in cat_tickets:
+                subcat = extract_subcategory(ticket, selected_cat)
+                subcat_counts[subcat] += 1
+                if len(subcat_tickets[subcat]) < 10:  # Keep up to 10 examples per subcategory
+                    subcat_tickets[subcat].append(ticket)
+
+            # Display subcategory cards
+            st.markdown("---")
+            st.markdown("### 📋 Subcategories & Friction Points")
+
+            for idx, (subcat, count) in enumerate(subcat_counts.most_common(5), 1):
+                pct = (count / len(cat_tickets) * 100) if cat_tickets else 0
+                tickets = subcat_tickets[subcat]
+
+                # Determine badge type
+                is_high_volume = count > len(cat_tickets) * 0.3
+                has_bug_keywords = any(
+                    word in subcat.lower()
+                    for word in ["error", "issue", "sync", "blocked", "failed"]
+                )
+
+                if is_high_volume and has_bug_keywords:
+                    badge_type = "🔴 High Priority"
+                    badge_color = "#dc2626"
+                elif has_bug_keywords:
+                    badge_type = "🟡 Needs Attention"
+                    badge_color = "#f59e0b"
+                else:
+                    badge_type = "🟢 Monitor"
+                    badge_color = "#16a34a"
+
+                # Create issue card
+                with st.expander(f"**{selected_cat[:2].upper()}-{idx:02d}** • {subcat} — {count} tickets ({pct:.0f}%)", expanded=(idx <= 2)):
+                    # Badge
+                    st.markdown(f"<span style='background: {badge_color}20; color: {badge_color}; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;'>{badge_type}</span>", unsafe_allow_html=True)
+
+                    st.markdown("")
+
+                    # What's broken section
+                    st.markdown("**WHAT'S ACTUALLY BROKEN**")
+                    # Get example subjects
+                    example_subjects = []
+                    for t in tickets[:3]:
+                        subj = t.get("subject", "")[:120]
+                        if subj:
+                            example_subjects.append(subj)
+
+                    if example_subjects:
+                        for ex in example_subjects:
+                            st.markdown(f"• _{ex}_")
+                    else:
+                        st.info("No clear pattern identified")
+
+                    st.markdown("")
+
+                    # Affected customers
+                    customers = list(set([t.get("organization_name") for t in tickets if t.get("organization_name")]))[:5]
+                    if customers:
+                        st.markdown("**AFFECTED CUSTOMERS**")
+                        st.caption(", ".join(customers))
+
+                    st.markdown("")
+
+                    # Analyze patterns
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown("**TRIGGER**")
+                        # Try to identify trigger
+                        trigger = "User action"
+                        subjects_combined = " ".join([t.get("subject", "").lower() for t in tickets])
+
+                        if "sync" in subjects_combined or "calendar" in subjects_combined:
+                            trigger = "Cyclic sync check"
+                        elif "connect" in subjects_combined or "add" in subjects_combined:
+                            trigger = "New connection attempt"
+                        elif "photo" in subjects_combined or "image" in subjects_combined:
+                            trigger = "Media upload/sync"
+                        elif "document" in subjects_combined or "kyc" in subjects_combined:
+                            trigger = "Document validation"
+
+                        st.caption(trigger)
+
+                    with col2:
+                        st.markdown("**ALSO IMPACTS**")
+                        # Determine related areas
+                        if "Booking" in selected_cat or "Airbnb" in selected_cat or "Vrbo" in selected_cat:
+                            related = "Connectivity"
+                        elif "Payment" in selected_cat or "SmilyPay" in selected_cat:
+                            related = "Payments / Checkout"
+                        elif "API" in selected_cat:
+                            related = "Integrations"
+                        else:
+                            related = "Platform"
+
+                        st.caption(f"🔗 {related}")
+
+                    st.markdown("")
+
+                    # Potential solution/action
+                    st.markdown("**💡 SUGGESTED ACTION**")
+
+                    # Generate suggestions based on subcategory
+                    if "sync" in subcat.lower():
+                        suggestion = "Implement auto-retry logic and better error messages. Add sync health dashboard."
+                    elif "connect" in subcat.lower() or "connection" in subcat.lower():
+                        suggestion = "Improve onboarding flow with step-by-step wizard. Add connection test before save."
+                    elif "document" in subcat.lower() or "rejection" in subcat.lower():
+                        suggestion = "Add document preview and validation before upload. Show clear examples."
+                    elif "blocked" in subcat.lower() or "suspended" in subcat.lower():
+                        suggestion = "Add proactive warnings before listing gets blocked. Provide self-service unblock."
+                    elif "photo" in subcat.lower() or "image" in subcat.lower():
+                        suggestion = "Optimize image upload UX. Add bulk upload and format validation."
+                    elif "price" in subcat.lower() or "pricing" in subcat.lower():
+                        suggestion = "Add price sync validation. Show diff before applying changes."
+                    else:
+                        suggestion = "Analyze ticket comments to identify common resolution pattern."
+
+                    st.info(suggestion)
+
+                    # Source info
+                    st.markdown("")
+                    st.caption(f"_Source: {count} tickets from {len(customers)} customer(s)_")
+
+            # Summary metrics
+            st.markdown("---")
+            st.markdown("### 📊 Category Summary")
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                high_priority_count = sum(1 for t in cat_tickets if t.get("priority") in ["high", "urgent"])
+                st.metric("High Priority", high_priority_count, f"{high_priority_count/len(cat_tickets)*100:.0f}%")
+
+            with col2:
+                solved_count = sum(1 for t in cat_tickets if t.get("status") == "solved")
+                st.metric("Solved", solved_count, f"{solved_count/len(cat_tickets)*100:.0f}%")
+
+            with col3:
+                unique_customers = len(set([t.get("organization_name") for t in cat_tickets if t.get("organization_name")]))
+                st.metric("Unique Customers", unique_customers)
+
+        else:
+            st.info("No categories available for analysis.")
 
     # ========== FOOTER ==========
     st.markdown("---")
