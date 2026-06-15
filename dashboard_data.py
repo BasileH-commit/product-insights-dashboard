@@ -56,6 +56,106 @@ CATEGORIES_DETAILED = {
     "Vrbo / Abritel": ["vrbo", "abritel", "homeaway"],
     "Pricing": ["pricing", "prix", "price", "tarif", "rate", "markup", "mark-up"],
     "Account / Billing": ["account", "billing", "invoice", "facture", "subscription", "abonnement"],
+    # New specific categories to reduce "Other"
+    "API / Integration": ["api", "integration", "webhook", "endpoint", "connect", "channel manager", "pms"],
+    "Mobile App": ["mobile", "app", "ios", "android", "phone", "smartphone"],
+    "Reports / Analytics": ["report", "export", "analytics", "statistics", "stat", "rapports", "statistiques"],
+    "Feature Request": ["feature", "suggestion", "request", "add", "new feature", "would like", "demande"],
+    "Bug / Technical Issue": ["bug", "error", "crash", "broken", "not working", "doesn't work", "ne fonctionne pas"],
+    "Training / How-to": ["how to", "how do i", "comment", "tutorial", "guide", "help", "aide"],
+}
+
+# Subcategory patterns for detailed breakdown
+SUBCATEGORY_PATTERNS = {
+    "Booking.com – General": {
+        "Reservation management": ["reservation", "booking", "réservation", "guest", "check-in", "check-out"],
+        "Content updates": ["description", "content", "text", "contenu", "update info", "modify"],
+        "Listing settings": ["setting", "config", "paramètre", "option", "preference"],
+        "Account access": ["login", "access", "password", "account", "compte", "connexion"],
+        "Photos / Media": ["photo", "image", "picture", "media", "gallery"],
+        "Rates / Pricing": ["rate", "price", "prix", "tarif", "cost"],
+        "Availability issues": ["availability", "disponibilité", "calendar", "blocked"],
+        "General questions": [],  # catch-all
+    },
+    "Booking.com – New Connections": {
+        "Connection errors": ["error", "fail", "can't connect", "unable", "impossible"],
+        "Authentication": ["auth", "login", "credentials", "password", "token"],
+        "Missing listings": ["listing not found", "can't find", "missing", "manquant"],
+        "First-time setup": ["first", "initial", "setup", "onboard", "new"],
+        "General connection": [],  # catch-all
+    },
+    "Booking.com – Sync Issues": {
+        "Calendar sync": ["calendar", "calendrier", "availability", "disponibilité"],
+        "Photo sync": ["photo", "image", "picture"],
+        "Price sync": ["price", "prix", "tarif", "rate"],
+        "Content sync": ["description", "content", "text", "info"],
+        "Reservation sync": ["reservation", "booking", "réservation"],
+        "General sync": [],  # catch-all
+    },
+    "SmilyPay / Payment Gateway": {
+        "Document rejection": ["document", "rejected", "rejet", "rib", "iban", "identity", "kyc"],
+        "Payment delays": ["delay", "retard", "waiting", "pending", "en attente"],
+        "Transfer issues": ["transfer", "virement", "versement", "payout"],
+        "3DS / Security": ["3ds", "secure", "security", "verification"],
+        "Account activation": ["activate", "activation", "production", "live"],
+        "General payment": [],  # catch-all
+    },
+    "Rental Management": {
+        "Restore/Reactivate": ["restore", "restaurer", "reactivate", "réactiver", "closed"],
+        "Duplicate rental": ["duplicate", "dupliquer", "copy", "copie"],
+        "Configuration": ["config", "setting", "paramètre", "setup"],
+        "Delete rental": ["delete", "remove", "supprimer"],
+        "General management": [],  # catch-all
+    },
+    "Website / Experience": {
+        "Widget issues": ["widget", "embed", "integration"],
+        "Content display": ["content", "display", "show", "affichage", "contenu"],
+        "Landing page": ["landing", "page", "site"],
+        "Design / Theme": ["design", "theme", "style", "color", "look"],
+        "General website": [],  # catch-all
+    },
+    "Notifications / Automations": {
+        "Email not sent": ["not sent", "didn't receive", "non reçu", "missing email"],
+        "Template customization": ["template", "customize", "modèle", "personnaliser"],
+        "Automation rules": ["automation", "rule", "trigger", "condition"],
+        "Email content": ["content", "text", "message", "contenu"],
+        "General notifications": [],  # catch-all
+    },
+    "Airbnb – General": {
+        "Reservation issues": ["reservation", "booking", "réservation", "guest"],
+        "Listing updates": ["update", "modify", "change", "mettre à jour"],
+        "Account access": ["login", "access", "password", "account"],
+        "General questions": [],  # catch-all
+    },
+    "Airbnb – Sync Issues": {
+        "Calendar sync": ["calendar", "calendrier", "availability"],
+        "Photo sync": ["photo", "image", "picture"],
+        "Price sync": ["price", "prix", "tarif"],
+        "General sync": [],  # catch-all
+    },
+    "Cancellation Protection": {
+        "Activation": ["activate", "setup", "enable", "activer"],
+        "Claim process": ["claim", "demande", "request", "reimbursement"],
+        "Coverage questions": ["cover", "coverage", "couverture", "protected"],
+        "General protection": [],  # catch-all
+    },
+    "Vrbo / Abritel": {
+        "Connection": ["connect", "connexion", "link"],
+        "Sync issues": ["sync", "synchronisation", "calendar", "photo"],
+        "General Vrbo": [],  # catch-all
+    },
+    "Pricing": {
+        "Dynamic pricing": ["dynamic", "auto", "automatic", "automatique"],
+        "Markup issues": ["markup", "mark-up", "margin", "commission"],
+        "Price incorrect": ["wrong", "incorrect", "error", "mauvais prix"],
+        "General pricing": [],  # catch-all
+    },
+    "Account / Billing": {
+        "Invoice request": ["invoice", "facture", "receipt"],
+        "Subscription": ["subscription", "abonnement", "plan", "upgrade"],
+        "Account settings": ["account", "setting", "profile", "compte"],
+        "General billing": [],  # catch-all
+    },
 }
 
 
@@ -305,6 +405,12 @@ def categorize_detailed(text):
         "Pricing",
         "Account / Billing",
         "Vrbo / Abritel",
+        "API / Integration",
+        "Mobile App",
+        "Reports / Analytics",
+        "Feature Request",
+        "Bug / Technical Issue",
+        "Training / How-to",
         "Booking.com – General",
         "Airbnb – General",
     ]
@@ -315,6 +421,104 @@ def categorize_detailed(text):
             return category
 
     return "Other"
+
+
+def extract_subcategory(ticket, parent_category):
+    """Extract subcategory for a ticket based on its parent category."""
+    if parent_category not in SUBCATEGORY_PATTERNS:
+        return "General"
+
+    subject = ticket.get("subject", "").lower()
+    description = (ticket.get("description") or "")[:200].lower()
+    combined = f"{subject} {description}"
+
+    subcategories = SUBCATEGORY_PATTERNS[parent_category]
+
+    # Check each subcategory pattern
+    for subcat, keywords in subcategories.items():
+        if not keywords:  # This is the catch-all
+            continue
+        if any(kw in combined for kw in keywords):
+            return subcat
+
+    # Return the catch-all (last item)
+    catch_all = list(subcategories.keys())[-1]
+    return catch_all
+
+
+def get_category_breakdown_with_subcategories(tickets_tw, tickets_lw, top_n=7):
+    """Get category counts with subcategories for each."""
+    categories_tw = Counter()
+    categories_lw = Counter()
+    subcategories_tw = defaultdict(lambda: defaultdict(lambda: {"count": 0, "tickets": []}))
+    subcategories_lw = defaultdict(lambda: Counter())
+
+    # Count tickets and collect examples
+    for ticket in tickets_tw:
+        cat = ticket.get("category", "Other")
+        categories_tw[cat] += 1
+
+        # Extract subcategory
+        subcat = extract_subcategory(ticket, cat)
+        subcategories_tw[cat][subcat]["count"] += 1
+        # Store ticket for examples (limit to 3 per subcategory)
+        if len(subcategories_tw[cat][subcat]["tickets"]) < 3:
+            subcategories_tw[cat][subcat]["tickets"].append(ticket)
+
+    for ticket in tickets_lw:
+        cat = ticket.get("category", "Other")
+        categories_lw[cat] += 1
+
+        subcat = extract_subcategory(ticket, cat)
+        subcategories_lw[cat][subcat] += 1
+
+    # Build result with top categories
+    result = []
+    total_tickets = sum(categories_tw.values())
+
+    for cat in sorted(categories_tw.keys(), key=lambda x: -categories_tw[x])[:top_n]:
+        tw = categories_tw[cat]
+        lw = categories_lw.get(cat, 0)
+        pct = (tw / total_tickets * 100) if total_tickets > 0 else 0
+
+        if lw > 0:
+            wow_pct = ((tw - lw) / lw) * 100
+            wow_str = f"{wow_pct:+.0f}%"
+        elif tw > 0:
+            wow_str = "🆕 New"
+        else:
+            wow_str = "—"
+
+        # Get top subcategories
+        subcats = []
+        total_in_cat = sum(s["count"] for s in subcategories_tw[cat].values())
+
+        for subcat in sorted(subcategories_tw[cat].keys(),
+                            key=lambda x: -subcategories_tw[cat][x]["count"])[:3]:
+            subcat_data = subcategories_tw[cat][subcat]
+            subcat_count = subcat_data["count"]
+            subcat_pct = (subcat_count / total_in_cat * 100) if total_in_cat > 0 else 0
+
+            # Get example issues
+            examples = [t.get("subject", "")[:50] for t in subcat_data["tickets"][:2]]
+
+            subcats.append({
+                "name": subcat,
+                "count": subcat_count,
+                "percentage": subcat_pct,
+                "examples": examples
+            })
+
+        result.append({
+            "category": cat,
+            "count": tw,
+            "last_period": lw,
+            "percentage": pct,
+            "wow": wow_str,
+            "subcategories": subcats
+        })
+
+    return result
 
 
 def fetch_all_data(mode="days", days_back=None, year=None, month=None):
@@ -541,28 +745,50 @@ def get_subcategory_breakdown(tickets_tw, tickets_lw, parent_category):
 
 
 def get_top_issues(tickets_tw, tickets_lw, limit=15):
-    """Get top issues by ticket count."""
-    issues_tw = defaultdict(lambda: {"count": 0, "customers": set()})
+    """Get top issues by ticket count with enhanced context."""
+    # Group by normalized subject patterns
+    issues_tw = defaultdict(lambda: {
+        "count": 0,
+        "customers": set(),
+        "examples": [],
+        "tickets": []
+    })
     issues_lw = defaultdict(lambda: {"count": 0})
 
+    # Collect current period issues
     for ticket in tickets_tw:
-        subject = ticket.get("subject", "")[:60]
-        if subject:
-            issues_tw[subject]["count"] += 1
-            org_name = ticket.get("organization_name")
-            if org_name:
-                issues_tw[subject]["customers"].add(org_name)
+        subject = ticket.get("subject", "")
+        if not subject:
+            continue
 
+        # Normalize subject for grouping (first 80 chars)
+        normalized_subject = subject[:80]
+
+        issues_tw[normalized_subject]["count"] += 1
+        org_name = ticket.get("organization_name")
+        if org_name:
+            issues_tw[normalized_subject]["customers"].add(org_name)
+
+        # Store full ticket for detailed analysis
+        if len(issues_tw[normalized_subject]["tickets"]) < 5:
+            issues_tw[normalized_subject]["tickets"].append(ticket)
+
+    # Collect last period issues
     for ticket in tickets_lw:
-        subject = ticket.get("subject", "")[:60]
+        subject = ticket.get("subject", "")[:80]
         if subject:
             issues_lw[subject]["count"] += 1
 
+    # Build enhanced result
     result = []
     for issue, data in sorted(issues_tw.items(), key=lambda x: -x[1]["count"])[:limit]:
         tw = data["count"]
         lw = issues_lw.get(issue, {}).get("count", 0)
 
+        # Determine if new
+        is_new = lw == 0
+
+        # Calculate trend
         if lw > 0:
             delta_pct = ((tw - lw) / lw) * 100
             if delta_pct > 0:
@@ -574,11 +800,26 @@ def get_top_issues(tickets_tw, tickets_lw, limit=15):
         else:
             trend = "🆕 New"
 
+        # Get example ticket subjects (2-3 variations)
+        example_subjects = []
+        seen = set()
+        for ticket in data["tickets"][:3]:
+            subj = ticket.get("subject", "")[:60]
+            if subj and subj not in seen:
+                example_subjects.append(subj)
+                seen.add(subj)
+
+        # Get top affected customers
+        customer_list = sorted(data["customers"])[:5]
+
         result.append({
             "Issue": issue,
             "Count": tw,
             "Customers": len(data["customers"]),
-            "Trend": trend
+            "Trend": trend,
+            "IsNew": is_new,
+            "Examples": example_subjects,
+            "AffectedCustomers": customer_list
         })
 
     return result
