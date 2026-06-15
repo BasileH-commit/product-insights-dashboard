@@ -767,7 +767,10 @@ MODJO_API_KEY = "your-key"
                 y=-0.3,
                 xanchor="center",
                 x=0.5,
-                font=dict(size=10)
+                font=dict(size=11, color='#1e293b'),
+                bgcolor='#f8f9fc',
+                bordercolor='#cbd5e1',
+                borderwidth=1
             )
         )
 
@@ -1221,18 +1224,186 @@ MODJO_API_KEY = "your-key"
             st.markdown("#### Customer Details")
             st.dataframe(cust_df, use_container_width=True, hide_index=True)
 
-            # At-risk highlight
+            # 3-Month Customer Trends (Month view only)
+            if view_mode == "Month":
+                st.markdown("---")
+                st.markdown("### 📊 Customer Volume Trends (Last 3 Months)")
+
+                # Get top 10 customers from current period
+                top_10_customers = [c['Customer'] for c in top_customers[:10]]
+
+                # Fetch 3-month data (reuse trend_data if available)
+                if 'trend_data' in locals():
+                    customer_trends = defaultdict(list)
+                    months_labels = []
+
+                    for d in trend_data:
+                        months_labels.append(d['label'])
+                        # Count tickets per customer for this month
+                        month_customers = Counter()
+                        for ticket in d['tickets']:
+                            org = ticket.get('organization_name')
+                            if org in top_10_customers:
+                                month_customers[org] += 1
+
+                        for cust in top_10_customers:
+                            customer_trends[cust].append(month_customers.get(cust, 0))
+
+                    # Create trend chart for top customers
+                    fig_cust_trend = go.Figure()
+                    colors_cust = ['#4f46e5', '#059669', '#f59e0b', '#dc2626', '#8b5cf6',
+                                   '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#a855f7']
+
+                    for idx, cust in enumerate(top_10_customers):
+                        fig_cust_trend.add_trace(go.Scatter(
+                            x=months_labels,
+                            y=customer_trends[cust],
+                            mode='lines+markers',
+                            name=cust[:25] + '...' if len(cust) > 25 else cust,
+                            line=dict(color=colors_cust[idx], width=2),
+                            marker=dict(size=6)
+                        ))
+
+                    fig_cust_trend.update_layout(
+                        plot_bgcolor='white',
+                        paper_bgcolor='white',
+                        height=400,
+                        margin=dict(t=20, b=100, l=40, r=40),
+                        xaxis=dict(showgrid=False, tickfont=dict(size=12, color='#64748b')),
+                        yaxis=dict(
+                            showgrid=True,
+                            gridcolor='#f1f5f9',
+                            tickfont=dict(size=11, color='#64748b'),
+                            title="Tickets"
+                        ),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=-0.4,
+                            xanchor="center",
+                            x=0.5,
+                            font=dict(size=9, color='#1e293b'),
+                            bgcolor='#f8f9fc',
+                            bordercolor='#cbd5e1',
+                            borderwidth=1
+                        )
+                    )
+
+                    st.plotly_chart(fig_cust_trend, use_container_width=True)
+
+            # Churn Risk Assessment
             st.markdown("---")
-            st.markdown("### ⚠️ Customers to Watch")
+            st.markdown("### 🚨 Churn Risk Assessment")
+            st.markdown("<p class='section-subheader'>High-risk customers with detailed issue analysis</p>", unsafe_allow_html=True)
 
             # Find customers with high volume or increasing trend
             watch_list = [c for c in top_customers if c.get("Tickets", 0) >= 5 or "▲" in str(c.get("Trend", ""))]
 
             if watch_list:
-                for cust in watch_list[:5]:
-                    st.warning(f"**{cust['Customer']}** — {cust['Tickets']} tickets ({cust.get('Trend', '')})")
+                for cust_data in watch_list[:5]:
+                    cust_name = cust_data['Customer']
+                    cust_tickets = cust_data['Tickets']
+                    cust_trend = cust_data.get('Trend', '➡️ 0%')
+
+                    # Calculate churn risk score
+                    risk_score = 0
+                    risk_factors = []
+
+                    if cust_tickets >= 10:
+                        risk_score += 40
+                        risk_factors.append(f"Very high volume ({cust_tickets} tickets)")
+                    elif cust_tickets >= 5:
+                        risk_score += 25
+                        risk_factors.append(f"High volume ({cust_tickets} tickets)")
+
+                    if "▲" in cust_trend:
+                        trend_pct = cust_trend.replace("▲", "").replace("%", "").strip()
+                        try:
+                            if int(trend_pct.replace("+", "")) > 50:
+                                risk_score += 35
+                                risk_factors.append(f"Rapidly increasing tickets ({cust_trend})")
+                            else:
+                                risk_score += 20
+                                risk_factors.append(f"Increasing tickets ({cust_trend})")
+                        except:
+                            pass
+
+                    # Get customer tickets
+                    customer_tickets = [t for t in tickets_tw if t.get('organization_name') == cust_name]
+
+                    # Check for high priority tickets
+                    high_priority_count = sum(1 for t in customer_tickets if t.get('priority') in ['high', 'urgent'])
+                    if high_priority_count >= 3:
+                        risk_score += 25
+                        risk_factors.append(f"{high_priority_count} high priority tickets")
+
+                    # Check solve rate
+                    solved_count = sum(1 for t in customer_tickets if t.get('status') == 'solved')
+                    solve_rate = (solved_count / len(customer_tickets) * 100) if customer_tickets else 0
+                    if solve_rate < 50:
+                        risk_score += 20
+                        risk_factors.append(f"Low solve rate ({solve_rate:.0f}%)")
+
+                    # Determine risk level
+                    if risk_score >= 75:
+                        risk_level = "🔴 CRITICAL"
+                        risk_color = "#dc2626"
+                    elif risk_score >= 50:
+                        risk_level = "🟠 HIGH"
+                        risk_color = "#f59e0b"
+                    elif risk_score >= 30:
+                        risk_level = "🟡 MEDIUM"
+                        risk_color = "#fbbf24"
+                    else:
+                        risk_level = "🟢 LOW"
+                        risk_color = "#10b981"
+
+                    # Create expandable card for each customer
+                    with st.expander(f"**{cust_name}** — {cust_tickets} tickets | {risk_level} Risk ({risk_score}/100)", expanded=(risk_score >= 75)):
+                        st.markdown(f"<div style='background: {risk_color}15; padding: 12px; border-left: 4px solid {risk_color}; border-radius: 4px; margin-bottom: 16px;'><b>Risk Factors:</b><br>{'<br>'.join(['• ' + f for f in risk_factors])}</div>", unsafe_allow_html=True)
+
+                        # Top 5 issues for this customer
+                        st.markdown("**📋 Top 5 Issues/Requests:**")
+
+                        issue_subjects = Counter()
+                        issue_tickets = defaultdict(list)
+
+                        for ticket in customer_tickets:
+                            subj = ticket.get('subject', '')[:80]
+                            issue_subjects[subj] += 1
+                            if len(issue_tickets[subj]) < 2:  # Keep max 2 examples per issue
+                                issue_tickets[subj].append(ticket)
+
+                        for idx, (issue, count) in enumerate(issue_subjects.most_common(5), 1):
+                            st.markdown(f"**{idx}. {issue}** ({count}x)")
+
+                            # Show example ticket description
+                            example_ticket = issue_tickets[issue][0]
+                            description = example_ticket.get('description', '')
+
+                            if description:
+                                desc_clean = description.strip()
+                                desc_clean = '\n\n'.join([p.strip() for p in desc_clean.split('\n\n') if p.strip()])
+                                st.info(desc_clean[:400] + ('...' if len(desc_clean) > 400 else ''))
+                            else:
+                                st.caption("_No description available_")
+
+                            st.markdown("")
+
+                        # Churn recommendation
+                        st.markdown("**💡 Recommended Action:**")
+
+                        if risk_score >= 75:
+                            st.error(f"**URGENT:** Schedule immediate call with {cust_name}. Assign dedicated support. Review all open tickets and create action plan within 24h.")
+                        elif risk_score >= 50:
+                            st.warning(f"**IMPORTANT:** Proactive outreach recommended. Schedule check-in call this week. Review recurring issues and propose solutions.")
+                        elif risk_score >= 30:
+                            st.info(f"Monitor closely. Consider sending satisfaction survey. Review most common issues for potential product improvements.")
+                        else:
+                            st.success(f"Customer is stable. Continue standard support process.")
+
             else:
-                st.success("No customers flagged for attention.")
+                st.success("✅ No customers currently flagged for churn risk.")
         else:
             st.info("No customer data available.")
 
@@ -1301,13 +1472,18 @@ MODJO_API_KEY = "your-key"
         st.markdown("### 🔬 Friction Deep Dive by Category")
         st.markdown(f"<p class='section-subheader'>Analyze real issues, pain points, and solutions for {current_period_label}</p>", unsafe_allow_html=True)
 
-        # Category selector
+        # Category selector - make it prominent
+        st.markdown("#### 🎯 Select Category to Deep Dive")
         categories_list = sorted(categories_tw.keys(), key=lambda x: -categories_tw[x])
-        selected_cat = st.selectbox(
-            "Select category to analyze",
-            options=categories_list,
-            index=0 if categories_list else None
-        )
+
+        if not categories_list:
+            st.warning("No categories available for deep dive analysis.")
+        else:
+            selected_cat = st.selectbox(
+                "Choose any category from the dropdown",
+                options=categories_list,
+                key="deepdive_category_selector"
+            )
 
         if selected_cat:
             cat_tickets = [t for t in tickets_tw if t.get("category") == selected_cat]
