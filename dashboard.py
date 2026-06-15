@@ -27,6 +27,7 @@ from dashboard_data import (
     generate_actionable_insights,
     deep_dive_analysis,
     analyze_deep_dive_patterns,
+    extract_subcategory,
     CATEGORIES_DETAILED
 )
 
@@ -699,6 +700,39 @@ MODJO_API_KEY = "your-key"
                     st.info(insight['action'])
                     st.markdown(f"**🎯 Potential Impact:**")
                     st.success(insight['impact'])
+
+                    # Add real ticket examples
+                    st.markdown("---")
+                    st.markdown("**📋 Real Examples:**")
+
+                    # Find tickets matching this insight's category
+                    category_keywords = insight['category'].lower().split()
+                    matching_tickets = []
+
+                    for ticket in tickets_tw:
+                        ticket_cat = ticket.get('category', '').lower()
+                        ticket_subject = ticket.get('subject', '').lower()
+
+                        # Match tickets to this insight
+                        if any(keyword in ticket_cat or keyword in ticket_subject for keyword in category_keywords):
+                            matching_tickets.append(ticket)
+                            if len(matching_tickets) >= 3:
+                                break
+
+                    if matching_tickets:
+                        for i, ticket in enumerate(matching_tickets, 1):
+                            subject = ticket.get('subject', 'No subject')[:100]
+                            customer = ticket.get('organization_name', 'Unknown customer')
+                            priority = ticket.get('priority', 'normal').upper()
+                            created = ticket.get('created_at', '')[:10] if ticket.get('created_at') else 'Unknown'
+
+                            st.markdown(f"""
+                            **Example {i}:** "{subject}"
+                            - Customer: _{customer}_
+                            - Priority: `{priority}` | Created: {created}
+                            """)
+                    else:
+                        st.caption("_No specific ticket examples available for this pattern_")
         else:
             st.info("No specific insights generated for this period. Check back with more data.")
 
@@ -866,6 +900,39 @@ MODJO_API_KEY = "your-key"
                         st.info(insight['action'])
                         st.markdown(f"**🎯 Potential Impact:**")
                         st.success(insight['impact'])
+
+                        # Add real ticket examples
+                        st.markdown("---")
+                        st.markdown("**📋 Real Examples:**")
+
+                        # Find tickets matching this insight's category
+                        category_keywords = insight['category'].lower().split()
+                        matching_tickets = []
+
+                        for ticket in tickets_tw:
+                            ticket_cat = ticket.get('category', '').lower()
+                            ticket_subject = ticket.get('subject', '').lower()
+
+                            # Match tickets to this insight
+                            if any(keyword in ticket_cat or keyword in ticket_subject for keyword in category_keywords):
+                                matching_tickets.append(ticket)
+                                if len(matching_tickets) >= 3:
+                                    break
+
+                        if matching_tickets:
+                            for i, ticket in enumerate(matching_tickets, 1):
+                                subject = ticket.get('subject', 'No subject')[:100]
+                                customer = ticket.get('organization_name', 'Unknown customer')
+                                priority = ticket.get('priority', 'normal').upper()
+                                created = ticket.get('created_at', '')[:10] if ticket.get('created_at') else 'Unknown'
+
+                                st.markdown(f"""
+                                **Example {i}:** "{subject}"
+                                - Customer: _{customer}_
+                                - Priority: `{priority}` | Created: {created}
+                                """)
+                        else:
+                            st.caption("_No specific ticket examples available for this pattern_")
             else:
                 st.info("No specific insights generated for this period. Check back with more data.")
 
@@ -1047,7 +1114,6 @@ MODJO_API_KEY = "your-key"
             st.markdown(f"**{len(cat_tickets)} tickets** in this category this period")
 
             # Get subcategory breakdown
-            from dashboard_data import extract_subcategory
             subcat_counts = Counter()
             subcat_tickets = defaultdict(list)
 
