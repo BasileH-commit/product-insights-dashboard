@@ -721,15 +721,26 @@ MODJO_API_KEY = "your-key"
 
                     if matching_tickets:
                         for i, ticket in enumerate(matching_tickets, 1):
-                            subject = ticket.get('subject', 'No subject')[:100]
+                            subject = ticket.get('subject', 'No subject')[:120]
                             customer = ticket.get('organization_name', 'Unknown customer')
                             priority = (ticket.get('priority') or 'normal').upper()
                             created = ticket.get('created_at', '')[:10] if ticket.get('created_at') else 'Unknown'
 
+                            # Get description to show actual issue
+                            description = ticket.get('description', '')
+                            if description:
+                                # Clean and truncate description
+                                desc_clean = description.replace('\n', ' ').replace('\r', ' ')
+                                desc_clean = ' '.join(desc_clean.split())  # Remove extra whitespace
+                                issue_detail = desc_clean[:250] + '...' if len(desc_clean) > 250 else desc_clean
+                            else:
+                                issue_detail = "_No description provided_"
+
                             st.markdown(f"""
                             **Example {i}:** "{subject}"
-                            - Customer: _{customer}_
-                            - Priority: `{priority}` | Created: {created}
+                            - **Issue/Request:** {issue_detail}
+                            - **Customer:** _{customer}_
+                            - **Priority:** `{priority}` | **Created:** {created}
                             """)
                     else:
                         st.caption("_No specific ticket examples available for this pattern_")
@@ -921,15 +932,26 @@ MODJO_API_KEY = "your-key"
 
                         if matching_tickets:
                             for i, ticket in enumerate(matching_tickets, 1):
-                                subject = ticket.get('subject', 'No subject')[:100]
+                                subject = ticket.get('subject', 'No subject')[:120]
                                 customer = ticket.get('organization_name', 'Unknown customer')
                                 priority = (ticket.get('priority') or 'normal').upper()
                                 created = ticket.get('created_at', '')[:10] if ticket.get('created_at') else 'Unknown'
 
+                                # Get description to show actual issue
+                                description = ticket.get('description', '')
+                                if description:
+                                    # Clean and truncate description
+                                    desc_clean = description.replace('\n', ' ').replace('\r', ' ')
+                                    desc_clean = ' '.join(desc_clean.split())  # Remove extra whitespace
+                                    issue_detail = desc_clean[:250] + '...' if len(desc_clean) > 250 else desc_clean
+                                else:
+                                    issue_detail = "_No description provided_"
+
                                 st.markdown(f"""
                                 **Example {i}:** "{subject}"
-                                - Customer: _{customer}_
-                                - Priority: `{priority}` | Created: {created}
+                                - **Issue/Request:** {issue_detail}
+                                - **Customer:** _{customer}_
+                                - **Priority:** `{priority}` | **Created:** {created}
                                 """)
                         else:
                             st.caption("_No specific ticket examples available for this pattern_")
