@@ -521,6 +521,22 @@ def main():
     modjo_tw = data.get("modjo_this_week", [])
     modjo_lw = data.get("modjo_last_week", [])
 
+    # Generate proper period labels with actual dates
+    if view_mode == "Week":
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        current_period_label = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')}"
+
+        prev_end = start_date
+        prev_start = prev_end - timedelta(days=days_back)
+        previous_period_label = f"{prev_start.strftime('%b %d')} - {prev_end.strftime('%b %d, %Y')}"
+    else:  # Month view
+        current_period_label = selected_month_label  # e.g., "June 2026"
+
+        # Calculate previous month
+        prev_month_date = datetime(selected_month["year"], selected_month["month"], 1) - relativedelta(months=1)
+        previous_period_label = prev_month_date.strftime("%B %Y")
+
     # Check if data was loaded
     if not tickets_tw and not categories_tw:
         st.error("No data loaded. Please check your API credentials in Settings → Secrets.")
@@ -620,8 +636,8 @@ MODJO_API_KEY = "your-key"
 
             cat_data.append({
                 "Category": cat,
-                "This Period": tw_count,
-                "Last Period": lw_count,
+                current_period_label: tw_count,
+                previous_period_label: lw_count,
                 "Δ": delta,
                 "Change %": f"{wow_pct:+.1f}%" if lw_count > 0 else ("🆕 New" if tw_count > 0 else "—")
             })
@@ -630,7 +646,7 @@ MODJO_API_KEY = "your-key"
         if cat_df.empty:
             st.warning("No category data available. Check API credentials in Settings → Secrets.")
             return
-        cat_df = cat_df.sort_values("This Period", ascending=False)
+        cat_df = cat_df.sort_values(current_period_label, ascending=False)
 
         # Chart
         chart_df = cat_df.head(10).copy()
@@ -638,7 +654,7 @@ MODJO_API_KEY = "your-key"
             chart_df,
             "",
             "Category",
-            ["This Period", "Last Period"],
+            [current_period_label, previous_period_label],
             colors=['#6366f1', '#a5b4fc']
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -647,7 +663,7 @@ MODJO_API_KEY = "your-key"
         st.markdown("#### Detailed Breakdown")
 
         # Style the dataframe
-        display_df = cat_df[["Category", "This Period", "Last Period", "Δ", "Change %"]].copy()
+        display_df = cat_df[["Category", current_period_label, previous_period_label, "Δ", "Change %"]].copy()
 
         def color_delta(val):
             if isinstance(val, (int, float)):
@@ -808,14 +824,19 @@ MODJO_API_KEY = "your-key"
 
             if subcats:
                 subcat_df = pd.DataFrame(subcats)
-                subcat_df = subcat_df.sort_values("This Period", ascending=False)
+                # Rename columns to show actual periods
+                subcat_df = subcat_df.rename(columns={
+                    "This Period": current_period_label,
+                    "Last Period": previous_period_label
+                })
+                subcat_df = subcat_df.sort_values(current_period_label, ascending=False)
 
                 # Subcategory chart
                 fig_sub = create_comparison_chart(
                     subcat_df.head(15),
                     f"{selected_category} — Subcategory Breakdown",
                     "Subcategory",
-                    ["This Period", "Last Period"],
+                    [current_period_label, previous_period_label],
                     colors=['#6366f1', '#a5b4fc']
                 )
                 st.plotly_chart(fig_sub, use_container_width=True)
@@ -1121,7 +1142,7 @@ MODJO_API_KEY = "your-key"
     # ========== TAB 5: DEEP DIVE ==========
     with tab5:
         st.markdown("### 🔬 Friction Deep Dive by Category")
-        st.markdown(f"<p class='section-subheader'>Analyze real issues, pain points, and solutions per category</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='section-subheader'>Analyze real issues, pain points, and solutions for {current_period_label}</p>", unsafe_allow_html=True)
 
         # Category selector
         categories_list = sorted(categories_tw.keys(), key=lambda x: -categories_tw[x])
@@ -1135,7 +1156,7 @@ MODJO_API_KEY = "your-key"
             cat_tickets = [t for t in tickets_tw if t.get("category") == selected_cat]
 
             st.markdown(f"#### {selected_cat}")
-            st.markdown(f"**{len(cat_tickets)} tickets** in this category this period")
+            st.markdown(f"**{len(cat_tickets)} tickets** in {current_period_label}")
 
             # Get subcategory breakdown
             subcat_counts = Counter()
