@@ -618,6 +618,163 @@ MODJO_API_KEY = "your-key"
 
     st.markdown("---")
 
+    # ========== 3-MONTH TRENDS (Month View Only) ==========
+    if view_mode == "Month":
+        st.markdown("### 📈 3-Month Trends")
+        st.markdown(f"<p class='section-subheader'>Viewing trends across the last 3 months</p>", unsafe_allow_html=True)
+
+        with st.spinner("Loading 3-month trend data..."):
+            # Fetch data for last 3 months
+            trend_months = []
+            trend_data = []
+
+            for i in range(3):
+                month_date = datetime(selected_month["year"], selected_month["month"], 1) - relativedelta(months=i)
+                month_label = month_date.strftime("%b %Y")
+
+                # Fetch data for this month
+                month_data = load_data(mode="month", year=month_date.year, month=month_date.month)
+
+                trend_months.insert(0, month_label)  # Insert at beginning to have oldest first
+                trend_data.insert(0, {
+                    "label": month_label,
+                    "tickets": month_data.get("tickets_this_week", []),
+                    "categories": month_data.get("categories_this_week", {}),
+                    "modjo": month_data.get("modjo_this_week", [])
+                })
+
+        # Create trend visualizations
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Total tickets trend
+            ticket_counts = [len(d["tickets"]) for d in trend_data]
+
+            fig_tickets = go.Figure()
+            fig_tickets.add_trace(go.Scatter(
+                x=trend_months,
+                y=ticket_counts,
+                mode='lines+markers+text',
+                name='Total Tickets',
+                line=dict(color='#4f46e5', width=3),
+                marker=dict(size=12, color='#4f46e5'),
+                text=ticket_counts,
+                textposition='top center',
+                textfont=dict(size=14, color='#1e293b', family='Arial Black')
+            ))
+
+            fig_tickets.update_layout(
+                title="Total Tickets Trend",
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                height=300,
+                showlegend=False,
+                margin=dict(t=40, b=40, l=40, r=40),
+                xaxis=dict(showgrid=False, tickfont=dict(size=12, color='#64748b')),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='#f1f5f9',
+                    tickfont=dict(size=11, color='#64748b'),
+                    range=[0, max(ticket_counts) * 1.2]
+                )
+            )
+
+            st.plotly_chart(fig_tickets, use_container_width=True)
+
+        with col2:
+            # Solved rate trend
+            solve_rates = []
+            for d in trend_data:
+                tickets = d["tickets"]
+                solved = sum(1 for t in tickets if t.get("status") == "solved")
+                rate = (solved / len(tickets) * 100) if tickets else 0
+                solve_rates.append(round(rate, 1))
+
+            fig_solve = go.Figure()
+            fig_solve.add_trace(go.Scatter(
+                x=trend_months,
+                y=solve_rates,
+                mode='lines+markers+text',
+                name='Solve Rate',
+                line=dict(color='#059669', width=3),
+                marker=dict(size=12, color='#059669'),
+                text=[f"{r}%" for r in solve_rates],
+                textposition='top center',
+                textfont=dict(size=14, color='#1e293b', family='Arial Black')
+            ))
+
+            fig_solve.update_layout(
+                title="Solve Rate Trend",
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                height=300,
+                showlegend=False,
+                margin=dict(t=40, b=40, l=40, r=40),
+                xaxis=dict(showgrid=False, tickfont=dict(size=12, color='#64748b')),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='#f1f5f9',
+                    tickfont=dict(size=11, color='#64748b'),
+                    range=[0, 100],
+                    ticksuffix='%'
+                )
+            )
+
+            st.plotly_chart(fig_solve, use_container_width=True)
+
+        # Top categories trend
+        st.markdown("#### Top Categories Over Time")
+
+        # Find top 5 categories across all 3 months
+        all_categories = Counter()
+        for d in trend_data:
+            all_categories.update(d["categories"])
+
+        top_5_cats = [cat for cat, _ in all_categories.most_common(5)]
+
+        # Create multi-line chart for top categories
+        fig_cat_trend = go.Figure()
+
+        colors = ['#4f46e5', '#059669', '#f59e0b', '#dc2626', '#8b5cf6']
+
+        for idx, cat in enumerate(top_5_cats):
+            cat_counts = [d["categories"].get(cat, 0) for d in trend_data]
+
+            fig_cat_trend.add_trace(go.Scatter(
+                x=trend_months,
+                y=cat_counts,
+                mode='lines+markers',
+                name=cat[:30] + '...' if len(cat) > 30 else cat,
+                line=dict(color=colors[idx], width=2),
+                marker=dict(size=8)
+            ))
+
+        fig_cat_trend.update_layout(
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            height=350,
+            margin=dict(t=20, b=40, l=40, r=40),
+            xaxis=dict(showgrid=False, tickfont=dict(size=12, color='#64748b')),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='#f1f5f9',
+                tickfont=dict(size=11, color='#64748b'),
+                title="Tickets"
+            ),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.3,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=10)
+            )
+        )
+
+        st.plotly_chart(fig_cat_trend, use_container_width=True)
+
+        st.markdown("---")
+
     # ========== TABS ==========
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Categories", "🔥 Top Issues", "🏢 Customers", "👤 Agents", "🔬 Deep Dive"])
 
