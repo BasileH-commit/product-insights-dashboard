@@ -44,9 +44,15 @@ def check_password():
 
     def password_entered():
         """Check if password is correct."""
-        if st.session_state["password"] == st.secrets.get("DASHBOARD_PASSWORD", "smily2024"):
+        # Safely get password from session state
+        entered_password = st.session_state.get("password", "")
+        correct_password = st.secrets.get("DASHBOARD_PASSWORD", "smily2024")
+
+        if entered_password == correct_password:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store password
+            # Don't store password
+            if "password" in st.session_state:
+                del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
