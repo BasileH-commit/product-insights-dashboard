@@ -723,7 +723,7 @@ MODJO_API_KEY = "your-key"
                         for i, ticket in enumerate(matching_tickets, 1):
                             subject = ticket.get('subject', 'No subject')[:100]
                             customer = ticket.get('organization_name', 'Unknown customer')
-                            priority = ticket.get('priority', 'normal').upper()
+                            priority = (ticket.get('priority') or 'normal').upper()
                             created = ticket.get('created_at', '')[:10] if ticket.get('created_at') else 'Unknown'
 
                             st.markdown(f"""
@@ -923,7 +923,7 @@ MODJO_API_KEY = "your-key"
                             for i, ticket in enumerate(matching_tickets, 1):
                                 subject = ticket.get('subject', 'No subject')[:100]
                                 customer = ticket.get('organization_name', 'Unknown customer')
-                                priority = ticket.get('priority', 'normal').upper()
+                                priority = (ticket.get('priority') or 'normal').upper()
                                 created = ticket.get('created_at', '')[:10] if ticket.get('created_at') else 'Unknown'
 
                                 st.markdown(f"""
